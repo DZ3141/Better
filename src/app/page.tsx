@@ -1,7 +1,155 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { dataService } from '@/lib/dataService';
 import Link from 'next/link';
 
 export default function HomePage() {
+  const router = useRouter();
+
+  // Auth & Form states
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Forced Reset States
+  const [mustReset, setMustReset] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [resetSuccess, setResetSuccess] = useState(false);
+
+  // Registration States
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [regEmail, setRegEmail] = useState('');
+  const [regDealerName, setRegDealerName] = useState('');
+  const [regSuccess, setRegSuccess] = useState(false);
+  const [regError, setRegError] = useState('');
+
+  useEffect(() => {
+    // Check if already logged in
+    if (typeof window !== 'undefined') {
+      const activeUser = sessionStorage.getItem('mpp_active_user');
+      if (activeUser) {
+        try {
+          const user = JSON.parse(activeUser);
+          if (user.role === 'superadmin') {
+            router.push('/superadmin');
+          } else {
+            router.push('/dashboard');
+          }
+        } catch (e) {
+          sessionStorage.removeItem('mpp_active_user');
+        }
+      }
+    }
+  }, [router]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const res = await dataService.login(email, password);
+      if (res.success && res.user) {
+        if (res.user.password_reset_required) {
+          setMustReset(true);
+        } else {
+          sessionStorage.setItem('mpp_active_user', JSON.stringify(res.user));
+          if (res.user.role === 'superadmin') {
+            router.push('/superadmin');
+          } else {
+            router.push('/dashboard');
+          }
+        }
+      } else {
+        setError(res.error || 'Invalid credentials. Please try again.');
+      }
+    } catch (err) {
+      setError('An error occurred during login. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegError('');
+    setRegSuccess(false);
+
+    if (!regEmail || !regDealerName) {
+      setRegError('Please fill in all fields.');
+      return;
+    }
+
+    const BLOCKED_DOMAINS = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'protonmail.com', 'oeconnection.com'];
+    const domain = regEmail.split('@')[1]?.toLowerCase();
+    if (BLOCKED_DOMAINS.includes(domain)) {
+      setRegError('Error: Generic or personal email domains (Gmail/Outlook/Yahoo) are not allowed.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const success = await dataService.createPendingApproval(regEmail, regDealerName);
+      if (success) {
+        setRegSuccess(true);
+        setRegEmail('');
+        setRegDealerName('');
+      } else {
+        setRegError('Registration request failed. Please try again.');
+      }
+    } catch (err) {
+      setRegError('An error occurred during registration.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+
+    if (newPassword.length < 6) {
+      setResetError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setResetError('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const success = await dataService.updatePassword(email, newPassword);
+      if (success) {
+        setResetSuccess(true);
+        // Automatically log in
+        const res = await dataService.login(email, newPassword);
+        if (res.success && res.user) {
+          sessionStorage.setItem('mpp_active_user', JSON.stringify(res.user));
+          setTimeout(() => {
+            if (res.user.role === 'superadmin') {
+              router.push('/superadmin');
+            } else {
+              router.push('/dashboard');
+            }
+          }, 1500);
+        }
+      } else {
+        setResetError('Failed to update password. Please try again.');
+      }
+    } catch (err) {
+      setResetError('An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{
       backgroundColor: '#0b0b0a',
@@ -12,6 +160,74 @@ export default function HomePage() {
       flexDirection: 'column',
       overflowX: 'hidden'
     }}>
+      <style>{`
+        .hero-grid {
+          display: grid;
+          grid-template-columns: 1.1fr 0.9fr;
+          gap: 60px;
+          align-items: center;
+          padding: 80px 8%;
+          max-width: 1400px;
+          margin: 0 auto;
+          width: 100%;
+        }
+        .marketing-bullets {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          margin: 32px 0;
+        }
+        .bullet-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          font-size: 15px;
+          color: #9ca3af;
+        }
+        .bullet-icon {
+          color: #f6b23a;
+          font-weight: 900;
+          font-size: 18px;
+          line-height: 1;
+        }
+        .auth-card {
+          width: 100%;
+          background-color: #121211;
+          border: 1px solid #262624;
+          border-radius: 16px;
+          padding: 40px;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 50px rgba(246, 178, 58, 0.04);
+        }
+        .auth-tabs {
+          display: flex;
+          border-bottom: 1px solid #262624;
+          margin-bottom: 28px;
+        }
+        .auth-tab {
+          flex: 1;
+          padding: 12px;
+          background: none;
+          border: none;
+          color: #9ca3af;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+          text-align: center;
+        }
+        .auth-tab.active {
+          color: #f6b23a;
+          border-bottom: 2px solid #f6b23a;
+        }
+        @media (max-width: 992px) {
+          .hero-grid {
+            grid-template-columns: 1fr;
+            padding: 40px 6%;
+            gap: 40px;
+          }
+        }
+      `}</style>
+
       {/* Header / Navbar */}
       <header style={{
         display: 'flex',
@@ -35,31 +251,16 @@ export default function HomePage() {
         <nav style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
           <a href="#features" style={{ color: '#9ca3af', textDecoration: 'none', fontSize: '14px', fontWeight: 500, transition: 'color 0.2s' }}>Features</a>
           <a href="#how-it-works" style={{ color: '#9ca3af', textDecoration: 'none', fontSize: '14px', fontWeight: 500, transition: 'color 0.2s' }}>How it Works</a>
-          <Link href="/login" style={{ color: '#ffffff', textDecoration: 'none', fontSize: '14px', fontWeight: 600 }}>
-            Sign In
-          </Link>
-          <Link href="/login" style={{
-            backgroundColor: '#f6b23a',
-            color: '#0b0b0a',
-            padding: '10px 20px',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 700,
-            textDecoration: 'none',
-            boxShadow: '0 4px 14px rgba(246, 178, 58, 0.2)',
-            transition: 'transform 0.2s'
-          }}>
-            Free Trial
-          </Link>
         </nav>
       </header>
 
-      {/* Hero Section */}
+      {/* Hero Split Section */}
       <section style={{
-        padding: '100px 8% 80px 8%',
-        textAlign: 'center',
         backgroundImage: 'radial-gradient(circle at top, #1a1a19 0%, #0b0b0a 100%)',
-        position: 'relative'
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        minHeight: 'calc(100vh - 86px)'
       }}>
         <div style={{
           position: 'absolute',
@@ -68,79 +269,318 @@ export default function HomePage() {
           transform: 'translateX(-50%)',
           width: '500px',
           height: '500px',
-          backgroundColor: 'rgba(246, 178, 58, 0.03)',
+          backgroundColor: 'rgba(246, 178, 58, 0.02)',
           filter: 'blur(100px)',
           borderRadius: '50%',
           pointerEvents: 'none'
         }} />
 
-        <div style={{ maxWidth: '800px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          <div style={{
-            display: 'inline-block',
-            backgroundColor: 'rgba(246, 178, 58, 0.1)',
-            border: '1px solid rgba(246, 178, 58, 0.2)',
-            color: '#f6b23a',
-            padding: '6px 16px',
-            borderRadius: '20px',
-            fontSize: '12px',
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            marginBottom: '24px'
-          }}>
-            ⚡ Better OEC by My Part Pros
+        <div className="hero-grid">
+          {/* Left Side: Product marketing */}
+          <div>
+            <div style={{
+              display: 'inline-block',
+              backgroundColor: 'rgba(246, 178, 58, 0.1)',
+              border: '1px solid rgba(246, 178, 58, 0.2)',
+              color: '#f6b23a',
+              padding: '6px 16px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              marginBottom: '24px'
+            }}>
+              ⚡ Better OEC by My Part Pros
+            </div>
+
+            <h1 style={{
+              fontSize: '48px',
+              fontWeight: 900,
+              lineHeight: '1.2',
+              letterSpacing: '-0.02em',
+              marginBottom: '20px',
+              fontFamily: 'Outfit, sans-serif'
+            }}>
+              Improve Dealer Shop Pricing & <br />
+              <span style={{ color: '#f6b23a' }}>Maximize OEM Reimbursements</span>
+            </h1>
+
+            <p style={{
+              fontSize: '16px',
+              color: '#9ca3af',
+              lineHeight: '1.6',
+              marginBottom: '24px'
+            }}>
+              Win more conquest bids, accelerate CollisionLink order workflows, and automatically protect your dealership profit margins directly on OEConnection.
+            </p>
+
+            <div className="marketing-bullets">
+              <div className="bullet-item">
+                <span className="bullet-icon">✓</span>
+                <div>
+                  <strong>Automate Win-Rate Calculations:</strong> The server-side pricing algorithm applies binary search mechanisms to discover the lowest acceptable sales price for matching conquest bids.
+                </div>
+              </div>
+              <div className="bullet-item">
+                <span className="bullet-icon">✓</span>
+                <div>
+                  <strong>Protect Key Dealer Margins:</strong> Enforce master floor guidelines or custom markups based on the collision shop account and part brand franchise.
+                </div>
+              </div>
+              <div className="bullet-item">
+                <span className="bullet-icon">✓</span>
+                <div>
+                  <strong>Integrated Notification Loop:</strong> Dispatch license resets, user welcome credentials, and seat changes directly through a dedicated transactional backend email framework.
+                </div>
+              </div>
+            </div>
           </div>
 
-          <h1 style={{
-            fontSize: '56px',
-            fontWeight: 900,
-            lineHeight: '1.15',
-            letterSpacing: '-0.03em',
-            marginBottom: '24px',
-            fontFamily: 'Outfit, sans-serif'
-          }}>
-            Improve Dealer Shop Pricing & <br />
-            <span style={{ color: '#f6b23a' }}>Maximize OEM Reimbursements</span>
-          </h1>
+          {/* Right Side: Embedded login / register panel */}
+          <div>
+            <div className="auth-card">
+              {/* Logo & Intro */}
+              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                <h2 style={{
+                  fontFamily: 'Outfit, sans-serif',
+                  fontWeight: 800,
+                  fontSize: '22px',
+                  color: '#ffffff',
+                  letterSpacing: '-0.01em'
+                }}>
+                  {mustReset 
+                    ? 'Update Credentials' 
+                    : isRegistering 
+                      ? 'Register Account' 
+                      : 'Console Account Login'}
+                </h2>
+                <p style={{ fontSize: '13px', color: '#9ca3af', marginTop: '6px' }}>
+                  {mustReset 
+                    ? 'Set a permanent passcode for your wholesaling user session.'
+                    : isRegistering
+                      ? 'Provision a new dealership account with a 14-day free trial.'
+                      : 'Access custom markups, seat provisioning, and price logging.'}
+                </p>
+              </div>
 
-          <p style={{
-            fontSize: '18px',
-            color: '#9ca3af',
-            lineHeight: '1.6',
-            marginBottom: '40px',
-            maxWidth: '680px',
-            margin: '0 auto 40px auto'
-          }}>
-            Win more conquest bids, accelerate CollisionLink order workflows, and automatically protect your dealership profit margins directly on OEConnection.
-          </p>
+              {!mustReset && (
+                <div className="auth-tabs">
+                  <button 
+                    className={`auth-tab ${!isRegistering ? 'active' : ''}`}
+                    onClick={() => { setIsRegistering(false); setError(''); setRegError(''); }}
+                  >
+                    Sign In
+                  </button>
+                  <button 
+                    className={`auth-tab ${isRegistering ? 'active' : ''}`}
+                    onClick={() => { setIsRegistering(true); setError(''); setRegError(''); }}
+                  >
+                    Register Dealer
+                  </button>
+                </div>
+              )}
 
-          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
-            <Link href="/login" style={{
-              backgroundColor: '#f6b23a',
-              color: '#0b0b0a',
-              padding: '14px 28px',
-              borderRadius: '8px',
-              fontSize: '15px',
-              fontWeight: 800,
-              textDecoration: 'none',
-              boxShadow: '0 4px 20px rgba(246, 178, 58, 0.2)',
-              transition: 'transform 0.2s'
-            }}>
-              Register for Free Trial
-            </Link>
-            <Link href="/login" style={{
-              backgroundColor: '#121211',
-              border: '1px solid #262624',
-              color: '#ffffff',
-              padding: '14px 28px',
-              borderRadius: '8px',
-              fontSize: '15px',
-              fontWeight: 700,
-              textDecoration: 'none',
-              transition: 'background-color 0.2s'
-            }}>
-              Dealer Login
-            </Link>
+              {/* Login / Register / Reset Forms */}
+              {mustReset ? (
+                /* PASSWORD RESET FORM */
+                <form onSubmit={handlePasswordReset} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {resetError && (
+                    <div style={{
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      color: '#ef4444',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      textAlign: 'center'
+                    }}>
+                      {resetError}
+                    </div>
+                  )}
+
+                  {resetSuccess && (
+                    <div style={{
+                      backgroundColor: 'rgba(246, 178, 58, 0.1)',
+                      border: '1px solid rgba(246, 178, 58, 0.2)',
+                      color: '#f6b23a',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      textAlign: 'center'
+                    }}>
+                      Password updated successfully! Redirecting...
+                    </div>
+                  )}
+                  
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label htmlFor="newPassword" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>New Password</label>
+                    <input 
+                      type="password" 
+                      id="newPassword" 
+                      required 
+                      disabled={resetSuccess}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label htmlFor="confirmPassword" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Confirm New Password</label>
+                    <input 
+                      type="password" 
+                      id="confirmPassword" 
+                      required 
+                      disabled={resetSuccess}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary" 
+                    disabled={loading || resetSuccess}
+                    style={{ width: '100%', padding: '12px', marginTop: '8px' }}
+                  >
+                    {loading ? 'Saving...' : 'Update Password'}
+                  </button>
+                </form>
+              ) : isRegistering ? (
+                /* REGISTRATION FORM */
+                <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {regError && (
+                    <div style={{
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      color: '#ef4444',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      textAlign: 'center'
+                    }}>
+                      {regError}
+                    </div>
+                  )}
+
+                  {regSuccess && (
+                    <div style={{
+                      backgroundColor: 'rgba(246, 178, 58, 0.1)',
+                      border: '1px solid rgba(246, 178, 58, 0.2)',
+                      color: '#f6b23a',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      textAlign: 'center',
+                      lineHeight: '1.4'
+                    }}>
+                      <strong>Trial request submitted!</strong><br />
+                      Our support staff will review your corporate email and approve credentials shortly.
+                    </div>
+                  )}
+
+                  {!regSuccess && (
+                    <>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label htmlFor="reg-email" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Business Email</label>
+                        <input 
+                          type="email" 
+                          id="reg-email" 
+                          required 
+                          value={regEmail}
+                          onChange={(e) => setRegEmail(e.target.value)}
+                          placeholder="you@dealership.com"
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label htmlFor="reg-dealer" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Dealership Name</label>
+                        <input 
+                          type="text" 
+                          id="reg-dealer" 
+                          required 
+                          value={regDealerName}
+                          onChange={(e) => setRegDealerName(e.target.value)}
+                          placeholder="Hendrick Chevrolet"
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+
+                      <button 
+                        type="submit" 
+                        className="btn btn-primary" 
+                        disabled={loading}
+                        style={{ width: '100%', padding: '12px', marginTop: '8px' }}
+                      >
+                        {loading ? 'Submitting...' : 'Request Free Trial'}
+                      </button>
+                    </>
+                  )}
+                </form>
+              ) : (
+                /* SIGN IN FORM */
+                <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {error && (
+                    <div style={{
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      color: '#ef4444',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      textAlign: 'center'
+                    }}>
+                      {error}
+                    </div>
+                  )}
+                  
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label htmlFor="email" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Email Address</label>
+                    <input 
+                      type="email" 
+                      id="email" 
+                      required 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="admin@dealership.com"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label htmlFor="password" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Password</label>
+                    <input 
+                      type="password" 
+                      id="password" 
+                      required 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary" 
+                    disabled={loading}
+                    style={{ width: '100%', padding: '12px', marginTop: '8px' }}
+                  >
+                    {loading ? 'Logging in...' : 'Sign In'}
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -283,7 +723,6 @@ export default function HomePage() {
         color: '#9ca3af'
       }}>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '24px', marginBottom: '16px' }}>
-          <Link href="/login" style={{ color: '#9ca3af', textDecoration: 'none' }}>Admin Login</Link>
           <a href="#" style={{ color: '#9ca3af', textDecoration: 'none' }}>Privacy Policy</a>
           <a href="#" style={{ color: '#9ca3af', textDecoration: 'none' }}>Terms of Service</a>
         </div>

@@ -381,6 +381,32 @@ export const dataService = {
     return false;
   },
 
+  async deleteDealer(dealerId: string): Promise<boolean> {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('dealer_accounts').delete().eq('id', dealerId);
+      if (error) {
+        console.error("Error deleting dealer account from Supabase:", error);
+        return false;
+      }
+    }
+    const state = getLocalStorageState();
+    state.dealers = state.dealers.filter(d => d.id !== dealerId);
+    state.users = state.users.filter(u => u.dealer_account_id !== dealerId);
+    state.licenses = state.licenses.filter(l => l.dealer_account_id !== dealerId);
+    state.sessions = state.sessions.filter(s => {
+      const lic = state.licenses.find(l => l.id === s.license_id);
+      return !lic || lic.dealer_account_id !== dealerId;
+    });
+    state.customers = state.customers.filter(c => c.dealer_account_id !== dealerId);
+    state.price_results = state.price_results.filter(p => p.dealer_account_id !== dealerId);
+    state.invoices = state.invoices.filter(i => i.dealer_account_id !== dealerId);
+    if (state.default_markups && state.default_markups[dealerId]) {
+      delete state.default_markups[dealerId];
+    }
+    saveLocalStorageState(state);
+    return true;
+  },
+
   // --- USER SERVICES ---
   async getUsers(dealerId: string | null): Promise<any[]> {
     if (isSupabaseConfigured && supabase) {

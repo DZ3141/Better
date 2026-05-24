@@ -249,6 +249,18 @@ export default function SuperadminPage() {
     loadSuperData();
   };
 
+  const handleDeleteDealer = async (dealerId: string, dealerName: string) => {
+    const confirmed = window.confirm(`Are you sure you want to completely delete "${dealerName}"? This will permanently delete all associated users, licenses, active sessions, invoices, and pricing optimization logs.`);
+    if (!confirmed) return;
+    const success = await dataService.deleteDealer(dealerId);
+    if (success) {
+      showToast(`Dealer "${dealerName}" successfully deleted.`);
+      loadSuperData();
+    } else {
+      showToast(`Failed to delete "${dealerName}".`, 'error');
+    }
+  };
+
   // Domain Approvals Queue Controls
   const handleApproveSignup = async (appId: string, email: string) => {
     const tempPassword = "Welcome#" + Math.floor(1000 + Math.random() * 9000);
@@ -593,6 +605,9 @@ export default function SuperadminPage() {
                         </button>
                         <button className={`btn btn-sm ${d.status === 'suspended' ? 'btn-success' : 'btn-danger'}`} onClick={() => handleToggleDealerStatus(d.id, d.status)}>
                           {d.status === 'suspended' ? 'Activate' : 'Suspend'}
+                        </button>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleDeleteDealer(d.id, d.name)}>
+                          Delete
                         </button>
                       </td>
                     </tr>
