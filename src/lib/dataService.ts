@@ -270,7 +270,7 @@ export const dataService = {
     trialEnds.setDate(trialEnds.getDate() + trialDays);
 
     const newDealer = {
-      id: "d-" + Math.random().toString(36).substring(4),
+      id: typeof crypto !== 'undefined' ? crypto.randomUUID() : "d-" + Math.random().toString(36).substring(4),
       name,
       odoo_customer_id: "odoo_" + Math.random().toString(36).substring(6),
       odoo_contract_id: "contract_" + Math.random().toString(36).substring(7),
@@ -284,7 +284,10 @@ export const dataService = {
     };
 
     if (isSupabaseConfigured && supabase) {
-      await supabase.from('dealer_accounts').insert(newDealer);
+      // Omit 'franchises' as it is not a database column in dealer_accounts
+      const dbDealer = { ...newDealer } as any;
+      delete dbDealer.franchises;
+      await supabase.from('dealer_accounts').insert(dbDealer);
     }
 
     const state = getLocalStorageState();
@@ -292,12 +295,16 @@ export const dataService = {
     
     // Create empty license slots for this dealer
     for (let i = 0; i < seatCount; i++) {
-      state.licenses.push({
-        id: `lic-${newDealer.id}-${i+1}`,
+      const newLicense = {
+        id: typeof crypto !== 'undefined' ? crypto.randomUUID() : `lic-${newDealer.id}-${i+1}`,
         dealer_account_id: newDealer.id,
         user_id: null,
         created_at: new Date().toISOString()
-      });
+      };
+      if (isSupabaseConfigured && supabase) {
+        await supabase.from('licenses').insert(newLicense);
+      }
+      state.licenses.push(newLicense);
     }
 
     // Initialize blank markup rule
@@ -312,7 +319,10 @@ export const dataService = {
 
   async updateDealer(dealerId: string, updates: Partial<typeof SEED_DATA.dealers[0]>): Promise<boolean> {
     if (isSupabaseConfigured && supabase) {
-      await supabase.from('dealer_accounts').update(updates).eq('id', dealerId);
+      // Omit franchises before updating Supabase
+      const dbUpdates = { ...updates } as any;
+      delete dbUpdates.franchises;
+      await supabase.from('dealer_accounts').update(dbUpdates).eq('id', dealerId);
     }
     const state = getLocalStorageState();
     const index = state.dealers.findIndex(d => d.id === dealerId);
@@ -326,30 +336,40 @@ export const dataService = {
       if (newSeatCount > oldSeatCount) {
         // Add seats
         for (let i = oldSeatCount; i < newSeatCount; i++) {
-          state.licenses.push({
-            id: `lic-${dealerId}-${i+1}`,
+          const newLicense = {
+            id: typeof crypto !== 'undefined' ? crypto.randomUUID() : `lic-${dealerId}-${i+1}`,
             dealer_account_id: dealerId,
             user_id: null,
             created_at: new Date().toISOString()
-          });
+          };
+          if (isSupabaseConfigured && supabase) {
+            await supabase.from('licenses').insert(newLicense);
+          }
+          state.licenses.push(newLicense);
         }
       } else if (newSeatCount < oldSeatCount) {
         // Remove seats (starting with unassigned ones)
         let removeCount = oldSeatCount - newSeatCount;
-        let licensesForDealer = state.licenses.filter(l => l.dealer_account_id === dealerId);
+        const licensesForDealer = state.licenses.filter(l => l.dealer_account_id === dealerId);
         
         // Remove unassigned first
-        let unassigned = licensesForDealer.filter(l => l.user_id === null);
-        for (let l of unassigned) {
+        const unassigned = licensesForDealer.filter(l => l.user_id === null);
+        for (const l of unassigned) {
           if (removeCount <= 0) break;
+          if (isSupabaseConfigured && supabase) {
+            await supabase.from('licenses').delete().eq('id', l.id);
+          }
           state.licenses = state.licenses.filter(x => x.id !== l.id);
           removeCount--;
         }
         // If still need to remove, remove assigned seats (releasing user associations)
         if (removeCount > 0) {
-          let assigned = licensesForDealer.filter(l => l.user_id !== null);
-          for (let l of assigned) {
+          const assigned = licensesForDealer.filter(l => l.user_id !== null);
+          for (const l of assigned) {
             if (removeCount <= 0) break;
+            if (isSupabaseConfigured && supabase) {
+              await supabase.from('licenses').delete().eq('id', l.id);
+            }
             state.licenses = state.licenses.filter(x => x.id !== l.id);
             removeCount--;
           }

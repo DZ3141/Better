@@ -65,16 +65,37 @@ export default function DashboardPage() {
   }, [router]);
 
   const loadInitialData = async (currentUser: any) => {
-    const allDealers = await dataService.getDealers();
-    setDealers(allDealers);
+    try {
+      let allDealers = await dataService.getDealers();
+      
+      // Fallback if Supabase is connected but empty, to prevent hanging
+      if (!allDealers || allDealers.length === 0) {
+        const mockState = typeof window !== 'undefined' ? localStorage.getItem('mpp_dashboard_state') : null;
+        if (mockState) {
+          try {
+            allDealers = JSON.parse(mockState).dealers;
+          } catch(e) {}
+        }
+      }
+      
+      setDealers(allDealers || []);
 
-    // Set active dealer (Dealer Admins are locked to their own account)
-    const targetDealerId = currentUser.dealer_account_id || allDealers[0]?.id;
-    const dealer = allDealers.find(d => d.id === targetDealerId);
-    setActiveDealer(dealer);
+      // Set active dealer (Dealer Admins are locked to their own account)
+      const targetDealerId = currentUser.dealer_account_id || (allDealers && allDealers[0]?.id);
+      let dealer = allDealers ? allDealers.find(d => d.id === targetDealerId) : null;
+      
+      // Fallback if dealer is not found in the list
+      if (!dealer && allDealers && allDealers.length > 0) {
+        dealer = allDealers[0];
+      }
+      
+      setActiveDealer(dealer);
 
-    if (dealer) {
-      refreshDealerData(dealer.id);
+      if (dealer) {
+        refreshDealerData(dealer.id);
+      }
+    } catch (err) {
+      console.error("Error loading dashboard data:", err);
     }
   };
 
@@ -324,8 +345,21 @@ export default function DashboardPage() {
   const countUniqueCustomers = new Set(logsList.map(l => l.customer_number)).size;
   const countAssignedSeats = licensesList.filter(l => l.user_id !== null).length;
 
-  if (!user || !activeDealer) {
+  if (!user) {
     return <div style={{ color: 'white', padding: '40px', fontFamily: 'sans-serif' }}>Loading dashboard session...</div>;
+  }
+
+  if (!activeDealer) {
+    return (
+      <div style={{ color: 'white', padding: '40px', fontFamily: 'sans-serif', backgroundColor: '#0b0b0a', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+        <h2>No Active Dealer Account</h2>
+        <p style={{ color: '#9ca3af', maxWidth: '500px', textAlign: 'center', lineHeight: '1.5' }}>
+          Your user account is not associated with any active dealer account, or your database is empty. 
+          Please log out and log in to a different account, or make sure your database has seed records.
+        </p>
+        <button onClick={handleLogout} style={{ padding: '10px 20px', backgroundColor: '#f6b23a', border: 'none', borderRadius: '6px', color: 'black', fontWeight: 'bold', cursor: 'pointer' }}>Log Out</button>
+      </div>
+    );
   }
 
   return (
