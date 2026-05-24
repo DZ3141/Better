@@ -814,19 +814,128 @@ export const dataService = {
     return true;
   },
 
-  async getSentEmails() {
-    return getLocalStorageState().sent_emails;
+  async sendEmail(to: string, subject: string, body: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject, text: body })
+      });
+      return res.ok;
+    } catch (e) {
+      console.error("Failed to send email through API:", e);
+      return false;
+    }
   },
 
-  async sendSimulatedEmail(from: string, to: string, subject: string, body: string) {
+  async createPendingApproval(email: string, dealerName: string, role: string = 'dealer_admin'): Promise<boolean> {
+    const newApproval = {
+      id: typeof crypto !== 'undefined' ? crypto.randomUUID() : "app-" + Math.random().toString(36).substring(4),
+      email,
+      dealer_name: dealerName,
+      role,
+      created_at: new Date().toISOString()
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('pending_approvals').insert(newApproval);
+      if (error) {
+        console.error("Error creating pending approval:", error);
+        return false;
+      }
+    }
+
     const state = getLocalStorageState();
-    state.sent_emails.unshift({
-      from,
-      to,
-      subject,
-      body,
-      date: new Date().toISOString()
-    });
+    state.pending_approvals.push(newApproval);
     saveLocalStorageState(state);
+    return true;
+  },
+
+  async getAlgorithmSettings() {
+    if (isSupabaseConfigured && supabase) {
+      const { data } = await supabase
+        .from('algorithm_settings')
+        .select('*')
+        .eq('id', 'default')
+        .maybeSingle();
+      if (data) return data;
+    }
+    // Mock local settings
+    if (typeof window !== 'undefined') {
+      const localAlgo = localStorage.getItem('mpp_algorithm_settings');
+      if (localAlgo) {
+        try {
+          return JSON.parse(localAlgo);
+        } catch (e) {}
+      }
+    }
+    const defaultVal = {
+      id: 'default',
+      optimize_code: `function optimize(listPrice, cost, reimbursementRate, minProfit) {
+  let low = cost * 0.5;
+  let high = listPrice;
+  let bestPrice = listPrice;
+  for (let i = 0; i < 30; i++) {
+    const mid = (low + high) / 2;
+    const reimbursement = mid * reimbursementRate;
+    const netProfit = mid + reimbursement - cost;
+    if (netProfit >= minProfit) {
+      bestPrice = mid;
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+  return Number(Math.min(listPrice, Math.max(cost * 0.5, bestPrice)).toFixed(2));
+}`,
+      maintain_profit_code: `function maintainProfit(listPrice, cost, reimbursementRate) {
+  const minProfit = listPrice - cost;
+  let low = cost * 0.5;
+  let high = listPrice;
+  let bestPrice = listPrice;
+  for (let i = 0; i < 30; i++) {
+    const mid = (low + high) / 2;
+    const reimbursement = mid * reimbursementRate;
+    const netProfit = mid + reimbursement - cost;
+    if (netProfit >= minProfit) {
+      bestPrice = mid;
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+  return Number(Math.min(listPrice, Math.max(cost * 0.5, bestPrice)).toFixed(2));
+}`
+    };
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('mpp_algorithm_settings', JSON.stringify(defaultVal));
+    }
+    return defaultVal;
+  },
+
+  async saveAlgorithmSettings(optimizeCode: string, maintainProfitCode: string) {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase
+        .from('algorithm_settings')
+        .upsert({
+          id: 'default',
+          optimize_code: optimizeCode,
+          maintain_profit_code: maintainProfitCode,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      if (error) {
+        console.error("Error saving algorithm settings:", error);
+        return false;
+      }
+    }
+    // Update local storage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('mpp_algorithm_settings', JSON.stringify({
+        id: 'default',
+        optimize_code: optimizeCode,
+        maintain_profit_code: maintainProfitCode
+      }));
+    }
+    return true;
   }
 };

@@ -13,9 +13,7 @@ export default function DashboardPage() {
   // Layout Tab State
   const [activeTab, setActiveTab] = useState('dealer-overview');
 
-  // Modal / Sandbox State
-  const [mailSandboxOpen, setMailSandboxOpen] = useState(false);
-  const [sentEmails, setSentEmails] = useState<any[]>([]);
+  // Modal State
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState('success');
 
@@ -143,10 +141,6 @@ export default function DashboardPage() {
     // Logs
     const logs = await dataService.getPriceResults(dealerId);
     setLogsList(logs);
-
-    // Email Sandbox logs
-    const emails = await dataService.getSentEmails();
-    setSentEmails(emails);
   };
 
   const showToast = (msg: string, type: string = 'success') => {
@@ -212,10 +206,10 @@ export default function DashboardPage() {
     const tempPassword = "Temp#" + Math.floor(1000 + Math.random() * 9000);
     await dataService.createUser(activeDealer.id, newUserEmail, newUserRole, tempPassword);
 
-    // Send Simulated Welcome email
+    // Send Welcome email
     const welcomeSubject = "Welcome to My Part Pros OEC Price Optimizer - Your Login Credentials";
     const welcomeBody = `Hi,\n\nYour user profile has been created.\n\nYour login details are:\nEmail: ${newUserEmail}\nTemporary Password: ${tempPassword}\n\nOn your first login you will be prompted to change this password.`;
-    await dataService.sendSimulatedEmail('notifications@mypartpros.com', newUserEmail, welcomeSubject, welcomeBody);
+    await dataService.sendEmail(newUserEmail, welcomeSubject, welcomeBody);
 
     setUserModalOpen(false);
     setNewUserEmail('');
@@ -232,7 +226,7 @@ export default function DashboardPage() {
     // Send password reset email
     const subject = "My Part Pros OEC Price Optimizer - Password Reset Credentials";
     const body = `Hi,\n\nYour account password has been reset. Your temporary password is:\n\n${tempPassword}\n\nYou will be required to set a new password on your next login.`;
-    await dataService.sendSimulatedEmail('notifications@mypartpros.com', email, subject, body);
+    await dataService.sendEmail(email, subject, body);
 
     showToast(`Password reset. Passcode emailed to ${email}`);
     refreshDealerData(activeDealer.id);
@@ -295,12 +289,11 @@ export default function DashboardPage() {
     const seatCostPerDay = rate / daysInMonth;
     const prorationAmount = adjustment * daysRemaining * seatCostPerDay;
 
-    const fromEmail = "notifications@mypartpros.com";
     const toEmail = "david@mypartpros.com";
     const subject = `[Billing Update] Seat Change for ${activeDealer.name}`;
     const body = `Hi David,\n\n${activeDealer.name} has adjusted their active seat allocations in the Optimizer Console.\n\nDetails:\n- Original Seats: ${currentSeats} ($${oldCost.toFixed(2)}/mo)\n- New Seats: ${newSeats} ($${newCost.toFixed(2)}/mo)\n- Monthly Rate Card: $${rate.toFixed(2)}/seat\n- Cycle Adjustment: ${adjustment > 0 ? '+' : '-'}${Math.abs(adjustment)} seats\n- Prorated adjustment for ${daysRemaining} days remaining: $${prorationAmount.toFixed(2)}\n\nPlease update their contract record in Odoo accordingly.`;
 
-    await dataService.sendSimulatedEmail(fromEmail, toEmail, subject, body);
+    await dataService.sendEmail(toEmail, subject, body);
     showToast(`Subscription seats updated to ${newSeats}. Notification sent to billing.`);
     refreshDealerData(activeDealer.id);
   };
@@ -471,17 +464,6 @@ export default function DashboardPage() {
           </div>
 
           <div className="header-actions">
-            {/* Email Sandbox Drawer Button */}
-            <button className="btn btn-secondary btn-sm" onClick={() => setMailSandboxOpen(true)} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '14px', height: '14px', color: 'var(--color-orange-primary)' }}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-              Email Sandbox
-              {sentEmails.length > 0 && (
-                <span className="badge badge-warning" style={{ position: 'absolute', top: '-6px', right: '-6px', fontSize: '8px', padding: '2px 5px', borderRadius: '50%', background: 'var(--color-orange-primary)', color: 'black' }}>
-                  {sentEmails.length}
-                </span>
-              )}
-            </button>
-
             <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>
               System Status: <span className="badge badge-success">Online</span>
             </div>
@@ -1082,39 +1064,7 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* ============================================== */}
-      {/* EMAIL SANDBOX DRAWER */}
-      {/* ============================================== */}
-      <div className={`mail-sandbox-drawer ${mailSandboxOpen ? 'open' : ''}`}>
-        <div className="drawer-header">
-          <h3>Simulated Email Sandbox</h3>
-          <button className="drawer-close" onClick={() => setMailSandboxOpen(false)}>×</button>
-        </div>
-        <div className="drawer-body">
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-            This panel captures all outbound system emails (Resend API mocks) generated in real time, such as license changes and admin welcome credentials.
-          </p>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
-            {sentEmails.map((email, idx) => (
-              <div key={idx} className="mail-item">
-                <div className="mail-header-row">
-                  <div><strong>From:</strong> {email.from}</div>
-                  <div><strong>To:</strong> {email.to}</div>
-                  <div style={{ fontSize: '10px', marginTop: '2px' }}>{new Date(email.date).toLocaleTimeString()}</div>
-                </div>
-                <div className="mail-subject">{email.subject}</div>
-                <div className="mail-content">{email.body}</div>
-              </div>
-            ))}
-            {sentEmails.length === 0 && (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', padding: '40px 0' }}>
-                No emails dispatched yet.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+
 
       {/* ============================================== */}
       {/* MODAL: ADD USER */}

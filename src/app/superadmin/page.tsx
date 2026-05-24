@@ -17,10 +17,7 @@ export default function SuperadminPage() {
   const [licensesList, setLicensesList] = useState<any[]>([]);
   const [approvalsList, setApprovalsList] = useState<any[]>([]);
   const [invoicesList, setInvoicesList] = useState<any[]>([]);
-  const [sentEmails, setSentEmails] = useState<any[]>([]);
-
   // Modals & Forms
-  const [mailSandboxOpen, setMailSandboxOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState('success');
 
@@ -46,6 +43,10 @@ export default function SuperadminPage() {
   const [toEmail, setToEmail] = useState('david@mypartpros.com');
   const [extensionUrl, setExtensionUrl] = useState('');
 
+  // Algorithm code editor states
+  const [optimizeCode, setOptimizeCode] = useState('');
+  const [maintainProfitCode, setMaintainProfitCode] = useState('');
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedUser = sessionStorage.getItem('mpp_active_user');
@@ -68,17 +69,44 @@ export default function SuperadminPage() {
   }, [router]);
 
   const loadSuperData = async () => {
-    const dList = await dataService.getDealers();
-    setDealers(dList);
+    let dList = await dataService.getDealers();
+    
+    // Fallback if empty to show mock data
+    if (!dList || dList.length === 0) {
+      const mockState = typeof window !== 'undefined' ? localStorage.getItem('mpp_dashboard_state') : null;
+      if (mockState) {
+        try {
+          dList = JSON.parse(mockState).dealers;
+        } catch(e) {}
+      }
+    }
+    setDealers(dList || []);
 
-    const uList = await dataService.getUsers(null);
-    setUsersList(uList);
+    let uList = await dataService.getUsers(null);
+    if (!uList || uList.length === 0) {
+      const mockState = typeof window !== 'undefined' ? localStorage.getItem('mpp_dashboard_state') : null;
+      if (mockState) {
+        try {
+          uList = JSON.parse(mockState).users;
+        } catch(e) {}
+      }
+    }
+    setUsersList(uList || []);
 
     // Collect all licenses from dealers
     let lList: any[] = [];
-    for (let d of dList) {
+    const activeDealers = dList || [];
+    for (let d of activeDealers) {
       const dLics = await dataService.getLicenses(d.id);
       lList = [...lList, ...dLics];
+    }
+    if (lList.length === 0) {
+      const mockState = typeof window !== 'undefined' ? localStorage.getItem('mpp_dashboard_state') : null;
+      if (mockState) {
+        try {
+          lList = JSON.parse(mockState).licenses;
+        } catch(e) {}
+      }
     }
     setLicensesList(lList);
 
@@ -93,8 +121,32 @@ export default function SuperadminPage() {
     setToEmail(settings.to_email);
     setExtensionUrl(settings.extension_url);
 
-    const emails = await dataService.getSentEmails();
-    setSentEmails(emails);
+    // Fetch algorithm settings
+    const algo = await dataService.getAlgorithmSettings();
+    setOptimizeCode(algo.optimize_code);
+    setMaintainProfitCode(algo.maintain_profit_code);
+  };
+
+  const handleSaveAlgorithms = async () => {
+    try {
+      new Function('listPrice', 'cost', 'reimbursementRate', 'minProfit', `
+        const testFn = ${optimizeCode};
+      `);
+      new Function('listPrice', 'cost', 'reimbursementRate', `
+        const testFn = ${maintainProfitCode};
+      `);
+    } catch (err: any) {
+      showToast(`Syntax Error in JavaScript code: ${err.message}`, 'error');
+      return;
+    }
+
+    const success = await dataService.saveAlgorithmSettings(optimizeCode, maintainProfitCode);
+    if (success) {
+      showToast('Pricing algorithms updated successfully!');
+      loadSuperData();
+    } else {
+      showToast('Failed to save algorithm settings.', 'error');
+    }
   };
 
   const showToast = (msg: string, type: string = 'success') => {
@@ -136,7 +188,7 @@ export default function SuperadminPage() {
     // Send Welcome Email
     const welcomeSubject = "Welcome to My Part Pros OEC Price Optimizer - Your Login Credentials";
     const welcomeBody = `Hi,\n\nYour dealer account "${newDealerName}" has been provisioned.\n\nYour administrator login credentials are:\nEmail: ${defaultAdminEmail}\nTemporary Password: ${tempPassword}\n\nOn your first login you will be required to change this password.`;
-    await dataService.sendSimulatedEmail(fromEmail, defaultAdminEmail, welcomeSubject, welcomeBody);
+    await dataService.sendEmail(defaultAdminEmail, welcomeSubject, welcomeBody);
 
     setDealerModalOpen(false);
     setNewDealerName('');
@@ -202,10 +254,10 @@ export default function SuperadminPage() {
     const tempPassword = "Welcome#" + Math.floor(1000 + Math.random() * 9000);
     await dataService.approvePendingApproval(appId, tempPassword);
     
-    // Send simulated email
+    // Send welcome email
     const subject = "Welcome to My Part Pros OEC Price Optimizer - Your Login Credentials";
     const body = `Hi,\n\nYour registration request has been approved.\n\nYour login details are:\nEmail: ${email}\nTemporary Password: ${tempPassword}\n\nOn your first login you will be prompted to change this password.`;
-    await dataService.sendSimulatedEmail(fromEmail, email, subject, body);
+    await dataService.sendEmail(email, subject, body);
 
     showToast(`Signup request approved. Welcome email sent to ${email}`);
     loadSuperData();
@@ -225,7 +277,7 @@ export default function SuperadminPage() {
     // Send reset email notice
     const subject = "My Part Pros OEC Price Optimizer - Password Reset Credentials";
     const body = `Hi,\n\nYour account password has been reset by administrative support. Your new temporary password is:\n\n${tempPassword}\n\nYou will be required to set a new password on your next login.`;
-    await dataService.sendSimulatedEmail(fromEmail, email, subject, body);
+    await dataService.sendEmail(email, subject, body);
 
     showToast(`Password reset. Passcode emailed to ${email}`);
     loadSuperData();
@@ -302,6 +354,12 @@ export default function SuperadminPage() {
               Password Resets
             </a>
           </li>
+          <li>
+            <a className={`menu-item ${activeTab === 'super-algorithm' ? 'active' : ''}`} onClick={() => setActiveTab('super-algorithm')}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+              System Algorithm
+            </a>
+          </li>
 
           <div style={{ marginTop: 'auto', padding: '10px 14px' }}>
             <button onClick={handleLogout} className="btn btn-secondary btn-sm" style={{ width: '100%', gap: '8px' }}>
@@ -335,17 +393,6 @@ export default function SuperadminPage() {
           </div>
 
           <div className="header-actions">
-            {/* Email Sandbox Drawer Button */}
-            <button className="btn btn-secondary btn-sm" onClick={() => setMailSandboxOpen(true)} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '14px', height: '14px', color: 'var(--color-orange-primary)' }}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-              Email Sandbox
-              {sentEmails.length > 0 && (
-                <span className="badge badge-warning" style={{ position: 'absolute', top: '-6px', right: '-6px', fontSize: '8px', padding: '2px 5px', borderRadius: '50%', background: 'var(--color-orange-primary)', color: 'black' }}>
-                  {sentEmails.length}
-                </span>
-              )}
-            </button>
-
             <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>
               Supabase Status: <span className="badge badge-success">Online</span>
             </div>
@@ -668,41 +715,82 @@ export default function SuperadminPage() {
             </div>
           </div>
         )}
+
+        {/* ============================================== */}
+        {/* VIEW: ALGORITHM */}
+        {/* ============================================== */}
+        {activeTab === 'super-algorithm' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            <div className="content-panel">
+              <div className="panel-header" style={{ borderBottom: '1px solid var(--border-dim)', paddingBottom: '12px' }}>
+                <div className="panel-header-titles">
+                  <h2>Pricing Algorithm Control Center</h2>
+                  <p>Paste and update the JavaScript function logic executed server-side when the Chrome extension sends pricing quote requests.</p>
+                </div>
+                <button className="btn btn-primary" onClick={handleSaveAlgorithms}>
+                  Save Algorithms
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '24px' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-orange-primary)', marginBottom: '8px', display: 'block' }}>
+                    1. Optimize Algorithm Function Code
+                  </label>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: '1.4' }}>
+                    This function handles the standard conquesting scan. It receives four parameters: `listPrice` (number), `cost` (number), `reimbursementRate` (number, e.g. 0.85), and `minProfit` (number, the minimum dollar profit floor). It must return a final selling price to offer the collision shop.
+                  </p>
+                  <textarea
+                    rows={12}
+                    value={optimizeCode}
+                    onChange={(e) => setOptimizeCode(e.target.value)}
+                    style={{
+                      width: '100%',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '13px',
+                      backgroundColor: 'var(--bg-surface-elevated)',
+                      border: '1px solid var(--border-dim)',
+                      color: 'white',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      lineHeight: '1.5'
+                    }}
+                    placeholder="function optimize(...) { ... }"
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-orange-primary)', marginBottom: '8px', display: 'block' }}>
+                    2. Maintain Profit Algorithm Function Code
+                  </label>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: '1.4' }}>
+                    This function is executed when the user selects the "Maintain Profit" option. It receives three parameters: `listPrice` (number), `cost` (number), and `reimbursementRate` (number). It must return a final selling price to offer the shop while ensuring the dealer's standard net profit is fully preserved.
+                  </p>
+                  <textarea
+                    rows={12}
+                    value={maintainProfitCode}
+                    onChange={(e) => setMaintainProfitCode(e.target.value)}
+                    style={{
+                      width: '100%',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '13px',
+                      backgroundColor: 'var(--bg-surface-elevated)',
+                      border: '1px solid var(--border-dim)',
+                      color: 'white',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      lineHeight: '1.5'
+                    }}
+                    placeholder="function maintainProfit(...) { ... }"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
-      {/* ============================================== */}
-      {/* EMAIL SANDBOX DRAWER */}
-      {/* ============================================== */}
-      <div className={`mail-sandbox-drawer ${mailSandboxOpen ? 'open' : ''}`}>
-        <div className="drawer-header">
-          <h3>Simulated Email Sandbox</h3>
-          <button className="drawer-close" onClick={() => setMailSandboxOpen(false)}>×</button>
-        </div>
-        <div className="drawer-body">
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-            Outbound system emails generated by active operations (signup approvals, password resets, Odoo contract alerts) show here in real time.
-          </p>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
-            {sentEmails.map((email, idx) => (
-              <div key={idx} className="mail-item">
-                <div className="mail-header-row">
-                  <div><strong>From:</strong> {email.from}</div>
-                  <div><strong>To:</strong> {email.to}</div>
-                  <div style={{ fontSize: '10px', marginTop: '2px' }}>{new Date(email.date).toLocaleTimeString()}</div>
-                </div>
-                <div className="mail-subject">{email.subject}</div>
-                <div className="mail-content">{email.body}</div>
-              </div>
-            ))}
-            {sentEmails.length === 0 && (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', padding: '40px 0' }}>
-                No emails dispatched yet.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+
 
       {/* ============================================== */}
       {/* MODAL: PROVISION DEALER */}

@@ -106,6 +106,56 @@ CREATE TABLE IF NOT EXISTS invoices (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Table: algorithm_settings (Stores dynamic javascript algorithms)
+CREATE TABLE IF NOT EXISTS algorithm_settings (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  optimize_code TEXT NOT NULL,
+  maintain_profit_code TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Seed default pricing algorithms
+INSERT INTO algorithm_settings (id, optimize_code, maintain_profit_code)
+VALUES (
+  'default',
+  'function optimize(listPrice, cost, reimbursementRate, minProfit) {
+  let low = cost * 0.5;
+  let high = listPrice;
+  let bestPrice = listPrice;
+  for (let i = 0; i < 30; i++) {
+    const mid = (low + high) / 2;
+    const reimbursement = mid * reimbursementRate;
+    const netProfit = mid + reimbursement - cost;
+    if (netProfit >= minProfit) {
+      bestPrice = mid;
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+  return Number(Math.min(listPrice, Math.max(cost * 0.5, bestPrice)).toFixed(2));
+}',
+  'function maintainProfit(listPrice, cost, reimbursementRate) {
+  const minProfit = listPrice - cost;
+  let low = cost * 0.5;
+  let high = listPrice;
+  let bestPrice = listPrice;
+  for (let i = 0; i < 30; i++) {
+    const mid = (low + high) / 2;
+    const reimbursement = mid * reimbursementRate;
+    const netProfit = mid + reimbursement - cost;
+    if (netProfit >= minProfit) {
+      bestPrice = mid;
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+  return Number(Math.min(listPrice, Math.max(cost * 0.5, bestPrice)).toFixed(2));
+}'
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- Row Level Security (RLS) Configuration
 ALTER TABLE dealer_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -115,7 +165,47 @@ ALTER TABLE account_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE price_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE extension_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pending_approvals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE algorithm_settings ENABLE ROW LEVEL SECURITY;
 
--- Basic Policies (To be integrated with Supabase auth metadata)
--- For development / client integration, we will also bypass or write rules checking the user's dealer_account_id.
+-- Permissive RLS Policies for testing and development
+-- dealer_accounts
+DROP POLICY IF EXISTS "dealer_accounts_permissive" ON dealer_accounts;
+CREATE POLICY "dealer_accounts_permissive" ON dealer_accounts FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- users
+DROP POLICY IF EXISTS "users_permissive" ON users;
+CREATE POLICY "users_permissive" ON users FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- licenses
+DROP POLICY IF EXISTS "licenses_permissive" ON licenses;
+CREATE POLICY "licenses_permissive" ON licenses FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- sessions
+DROP POLICY IF EXISTS "sessions_permissive" ON sessions;
+CREATE POLICY "sessions_permissive" ON sessions FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- account_rules
+DROP POLICY IF EXISTS "account_rules_permissive" ON account_rules;
+CREATE POLICY "account_rules_permissive" ON account_rules FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- price_results
+DROP POLICY IF EXISTS "price_results_permissive" ON price_results;
+CREATE POLICY "price_results_permissive" ON price_results FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- extension_sessions
+DROP POLICY IF EXISTS "extension_sessions_permissive" ON extension_sessions;
+CREATE POLICY "extension_sessions_permissive" ON extension_sessions FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- invoices
+DROP POLICY IF EXISTS "invoices_permissive" ON invoices;
+CREATE POLICY "invoices_permissive" ON invoices FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- pending_approvals
+DROP POLICY IF EXISTS "pending_approvals_permissive" ON pending_approvals;
+CREATE POLICY "pending_approvals_permissive" ON pending_approvals FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- algorithm_settings
+DROP POLICY IF EXISTS "algorithm_settings_permissive" ON algorithm_settings;
+CREATE POLICY "algorithm_settings_permissive" ON algorithm_settings FOR ALL TO public USING (true) WITH CHECK (true);
 

@@ -18,6 +18,47 @@ export default function LoginPage() {
   const [resetError, setResetError] = useState('');
   const [resetSuccess, setResetSuccess] = useState(false);
 
+  // Registration States
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [regEmail, setRegEmail] = useState('');
+  const [regDealerName, setRegDealerName] = useState('');
+  const [regSuccess, setRegSuccess] = useState(false);
+  const [regError, setRegError] = useState('');
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegError('');
+    setRegSuccess(false);
+
+    if (!regEmail || !regDealerName) {
+      setRegError('Please fill in all fields.');
+      return;
+    }
+
+    const BLOCKED_DOMAINS = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'protonmail.com', 'oeconnection.com'];
+    const domain = regEmail.split('@')[1]?.toLowerCase();
+    if (BLOCKED_DOMAINS.includes(domain)) {
+      setRegError('Error: Generic or personal email domains (Gmail/Outlook/Yahoo) are not allowed.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const success = await dataService.createPendingApproval(regEmail, regDealerName);
+      if (success) {
+        setRegSuccess(true);
+        setRegEmail('');
+        setRegDealerName('');
+      } else {
+        setRegError('Registration request failed. Please try again.');
+      }
+    } catch (err) {
+      setRegError('An error occurred during registration.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     // Check if already logged in
     if (typeof window !== 'undefined') {
@@ -149,7 +190,11 @@ export default function LoginPage() {
             letterSpacing: '-0.02em',
             marginTop: '8px'
           }}>
-            {mustReset ? 'Reset Your Password' : 'OEC Price Optimizer'}
+            {mustReset 
+              ? 'Reset Your Password' 
+              : isRegistering 
+                ? 'Register Dealership' 
+                : 'OEC Price Optimizer'}
           </h2>
           <p style={{
             fontSize: '13px',
@@ -158,75 +203,177 @@ export default function LoginPage() {
           }}>
             {mustReset 
               ? 'You are logging in with a temporary passcode. Please set a new password.'
-              : 'Sign in to access your pricing control panel.'
+              : isRegistering
+                ? 'Request a 14-day free trial contract for your dealership.'
+                : 'Sign in to access your pricing control panel.'
             }
           </p>
         </div>
 
-        {/* Login Form */}
+        {/* Form Container */}
         {!mustReset ? (
-          <form onSubmit={handleLogin} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {error && (
+          isRegistering ? (
+            /* Registration Form */
+            <form onSubmit={handleRegister} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {regError && (
+                <div style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                  color: '#ef4444',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  textAlign: 'center'
+                }}>
+                  {regError}
+                </div>
+              )}
+
+              {regSuccess && (
+                <div style={{
+                  backgroundColor: 'rgba(246, 178, 58, 0.1)',
+                  border: '1px solid rgba(246, 178, 58, 0.2)',
+                  color: '#f6b23a',
+                  padding: '16px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  textAlign: 'center',
+                  lineHeight: '1.4'
+                }}>
+                  <strong>Trial requested successfully!</strong><br />
+                  Our team will review your business email and email your welcome credentials shortly.
+                </div>
+              )}
+
+              {!regSuccess && (
+                <>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label htmlFor="reg-email" style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Business Email</label>
+                    <input 
+                      type="email" 
+                      id="reg-email" 
+                      required 
+                      value={regEmail}
+                      onChange={(e) => setRegEmail(e.target.value)}
+                      placeholder="you@dealership.com"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label htmlFor="reg-dealer" style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Dealership Name</label>
+                    <input 
+                      type="text" 
+                      id="reg-dealer" 
+                      required 
+                      value={regDealerName}
+                      onChange={(e) => setRegDealerName(e.target.value)}
+                      placeholder="Hendrick Chevrolet"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary" 
+                    disabled={loading}
+                    style={{ width: '100%', padding: '12px', marginTop: '8px' }}
+                  >
+                    {loading ? 'Submitting...' : 'Request Free Trial'}
+                  </button>
+                </>
+              )}
+
               <div style={{
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.2)',
-                color: '#ef4444',
-                padding: '12px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 500,
-                textAlign: 'center'
+                fontSize: '12px',
+                color: '#9ca3af',
+                textAlign: 'center',
+                marginTop: '8px'
               }}>
-                {error}
+                Already have an account?{' '}
+                <button 
+                  type="button" 
+                  onClick={() => { setIsRegistering(false); setRegSuccess(false); setRegError(''); }} 
+                  style={{ background: 'none', border: 'none', color: '#f6b23a', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}
+                >
+                  Sign In
+                </button>
               </div>
-            )}
-            
-            <div className="form-group" style={{ margin: 0 }}>
-              <label htmlFor="email" style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Email Address</label>
-              <input 
-                type="email" 
-                id="email" 
-                required 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@dealership.com"
-                style={{ width: '100%' }}
-              />
-            </div>
+            </form>
+          ) : (
+            /* Login Form */
+            <form onSubmit={handleLogin} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {error && (
+                <div style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                  color: '#ef4444',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  textAlign: 'center'
+                }}>
+                  {error}
+                </div>
+              )}
+              
+              <div className="form-group" style={{ margin: 0 }}>
+                <label htmlFor="email" style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Email Address</label>
+                <input 
+                  type="email" 
+                  id="email" 
+                  required 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@dealership.com"
+                  style={{ width: '100%' }}
+                />
+              </div>
 
-            <div className="form-group" style={{ margin: 0 }}>
-              <label htmlFor="password" style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Password</label>
-              <input 
-                type="password" 
-                id="password" 
-                required 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                style={{ width: '100%' }}
-              />
-            </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label htmlFor="password" style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Password</label>
+                <input 
+                  type="password" 
+                  id="password" 
+                  required 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  style={{ width: '100%' }}
+                />
+              </div>
 
-            <button 
-              type="submit" 
-              className="btn btn-primary" 
-              disabled={loading}
-              style={{ width: '100%', padding: '12px', marginTop: '8px' }}
-            >
-              {loading ? 'Logging in...' : 'Sign In'}
-            </button>
+              <button 
+                type="submit" 
+                className="btn btn-primary" 
+                disabled={loading}
+                style={{ width: '100%', padding: '12px', marginTop: '8px' }}
+              >
+                {loading ? 'Logging in...' : 'Sign In'}
+              </button>
 
-            <div style={{
-              fontSize: '11px',
-              color: '#9ca3af',
-              textAlign: 'center',
-              borderTop: '1px solid #262624',
-              paddingTop: '16px',
-              marginTop: '8px'
-            }}>
-              Need an account or help? Contact support@mypartpros.com
-            </div>
-          </form>
+              <div style={{
+                fontSize: '12px',
+                color: '#9ca3af',
+                textAlign: 'center',
+                borderTop: '1px solid #262624',
+                paddingTop: '16px',
+                marginTop: '8px'
+              }}>
+                Need a trial account?{' '}
+                <button 
+                  type="button" 
+                  onClick={() => { setIsRegistering(true); setRegSuccess(false); setRegError(''); }} 
+                  style={{ background: 'none', border: 'none', color: '#f6b23a', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}
+                >
+                  Register Dealership
+                </button>
+              </div>
+            </form>
+          )
         ) : (
           /* Password Reset Form */
           <form onSubmit={handlePasswordReset} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>

@@ -173,28 +173,59 @@ export async function POST(request: Request) {
         : Math.max(minByDollars, minByPercent);
     }
 
-    // 4. Run binary search optimization
-    // We want to find the MINIMUM selling price P such that:
-    // P + (P * nReimbRate) - nCost >= minProfit
-    let low = nCost * 0.5; // Allow selling below cost (discount offset by manufacturer reimbursement)
-    let high = nListPrice;
-    let bestPrice = nListPrice;
+    // 4. Run optimization (dynamic or default fallback)
+    let optimizedPrice = nListPrice;
+    let algorithmUsed = 'default-binary-search';
 
-    // Run binary search down to sub-cent precision (30 steps is plenty)
-    for (let i = 0; i < 30; i++) {
-      const mid = (low + high) / 2;
-      const reimbursement = mid * nReimbRate;
-      const netProfit = mid + reimbursement - nCost;
+    try {
+      const { data: algoSettings } = await supabase
+        .from('algorithm_settings')
+        .select('*')
+        .eq('id', 'default')
+        .maybeSingle();
 
-      if (netProfit >= minProfit) {
-        bestPrice = mid;
-        high = mid; // Try to offer an even lower price to win the sale
-      } else {
-        low = mid; // Need to price higher to meet profit requirement
+      if (algoSettings) {
+        if (optimizationType === 'maintain_profit' && algoSettings.maintain_profit_code) {
+          const fn = new Function('listPrice', 'cost', 'reimbursementRate', `
+            const algo = ${algoSettings.maintain_profit_code};
+            return algo(listPrice, cost, reimbursementRate);
+          `);
+          optimizedPrice = fn(nListPrice, nCost, nReimbRate);
+          algorithmUsed = 'dynamic-maintain-profit';
+        } else if (optimizationType === 'optimize' && algoSettings.optimize_code) {
+          const fn = new Function('listPrice', 'cost', 'reimbursementRate', 'minProfit', `
+            const algo = ${algoSettings.optimize_code};
+            return algo(listPrice, cost, reimbursementRate, minProfit);
+          `);
+          optimizedPrice = fn(nListPrice, nCost, nReimbRate, minProfit);
+          algorithmUsed = 'dynamic-optimize';
+        }
       }
+    } catch (algoErr) {
+      console.error("Failed to run dynamic algorithm code, falling back to default binary search:", algoErr);
     }
 
-    const optimizedPrice = Number(Math.min(nListPrice, Math.max(nCost * 0.5, bestPrice)).toFixed(2));
+    // Default Fallback if dynamic execution failed, returned NaN, or settings were missing
+    if (isNaN(optimizedPrice) || algorithmUsed === 'default-binary-search') {
+      let low = nCost * 0.5;
+      let high = nListPrice;
+      let bestPrice = nListPrice;
+
+      for (let i = 0; i < 30; i++) {
+        const mid = (low + high) / 2;
+        const reimbursement = mid * nReimbRate;
+        const netProfit = mid + reimbursement - nCost;
+
+        if (netProfit >= minProfit) {
+          bestPrice = mid;
+          high = mid;
+        } else {
+          low = mid;
+        }
+      }
+      optimizedPrice = Number(Math.min(nListPrice, Math.max(nCost * 0.5, bestPrice)).toFixed(2));
+    }
+
     const reimbursementAmount = Number((optimizedPrice * nReimbRate).toFixed(2));
     const marginAchieved = Number((((optimizedPrice - nCost) / nCost) * 100).toFixed(1));
 
