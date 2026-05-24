@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS account_rules (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dealer_account_id UUID REFERENCES dealer_accounts(id) ON DELETE CASCADE,
   customer_number TEXT, -- NULL represents the default rule for all customers
+  customer_name TEXT,
+  franchise TEXT,
   min_profit_percent NUMERIC NOT NULL DEFAULT 10,
   min_profit_dollars NUMERIC NOT NULL DEFAULT 0,
   priority TEXT CHECK (priority IN ('percent', 'dollars')) DEFAULT 'percent',
@@ -63,6 +65,8 @@ CREATE TABLE IF NOT EXISTS price_results (
   user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   part_number TEXT NOT NULL,
   customer_number TEXT,
+  customer_name TEXT,
+  franchise TEXT,
   original_price NUMERIC,
   optimized_price NUMERIC,
   reimb_amount NUMERIC,
@@ -71,6 +75,7 @@ CREATE TABLE IF NOT EXISTS price_results (
   optimization_type TEXT CHECK (optimization_type IN ('optimize', 'maintain_profit')) DEFAULT 'optimize',
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
 
 -- Table: extension_sessions
 CREATE TABLE IF NOT EXISTS extension_sessions (
@@ -90,6 +95,17 @@ CREATE TABLE IF NOT EXISTS pending_approvals (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Table: invoices (Odoo synchronization)
+CREATE TABLE IF NOT EXISTS invoices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  dealer_account_id UUID REFERENCES dealer_accounts(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  seat_count INT NOT NULL,
+  amount NUMERIC NOT NULL,
+  status TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Row Level Security (RLS) Configuration
 ALTER TABLE dealer_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -98,6 +114,8 @@ ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE account_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE price_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE extension_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 
 -- Basic Policies (To be integrated with Supabase auth metadata)
 -- For development / client integration, we will also bypass or write rules checking the user's dealer_account_id.
+

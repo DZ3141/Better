@@ -476,11 +476,90 @@ export const dataService = {
 
   // --- MARKUP RULES ---
   async getMarkupSettings(dealerId: string) {
+    if (isSupabaseConfigured && supabase) {
+      const { data } = await supabase
+        .from('account_rules')
+        .select('*')
+        .eq('dealer_account_id', dealerId)
+        .is('customer_number', null);
+      
+      if (data) {
+        const masterRule = data.find(r => r.franchise === null);
+        const franchiseRules = data.filter(r => r.franchise !== null);
+        
+        const franchiseMap: Record<string, number> = {};
+        franchiseRules.forEach(r => {
+          franchiseMap[r.franchise] = Number(r.min_profit_percent);
+        });
+
+        return {
+          master: masterRule ? Number(masterRule.min_profit_percent) : 10.0,
+          franchise: franchiseMap
+        };
+      }
+    }
     const state = getLocalStorageState();
     return state.default_markups[dealerId] || { master: 10.0, franchise: {} };
   },
 
   async saveMarkupSettings(dealerId: string, data: typeof SEED_DATA.default_markups[string]) {
+    if (isSupabaseConfigured && supabase) {
+      // Safe Master Upsert
+      const { data: existingMaster } = await supabase
+        .from('account_rules')
+        .select('id')
+        .eq('dealer_account_id', dealerId)
+        .is('customer_number', null)
+        .is('franchise', null)
+        .maybeSingle();
+
+      if (existingMaster) {
+        await supabase
+          .from('account_rules')
+          .update({ min_profit_percent: Number(data.master), updated_at: new Date().toISOString() })
+          .eq('id', existingMaster.id);
+      } else {
+        await supabase
+          .from('account_rules')
+          .insert({
+            dealer_account_id: dealerId,
+            customer_number: null,
+            franchise: null,
+            min_profit_percent: Number(data.master),
+            min_profit_dollars: 0,
+            priority: 'percent'
+          });
+      }
+
+      // Safe Franchise Upsert
+      for (const [fran, val] of Object.entries(data.franchise)) {
+        const { data: existingFran } = await supabase
+          .from('account_rules')
+          .select('id')
+          .eq('dealer_account_id', dealerId)
+          .is('customer_number', null)
+          .eq('franchise', fran)
+          .maybeSingle();
+
+        if (existingFran) {
+          await supabase
+            .from('account_rules')
+            .update({ min_profit_percent: Number(val), updated_at: new Date().toISOString() })
+            .eq('id', existingFran.id);
+        } else {
+          await supabase
+            .from('account_rules')
+            .insert({
+              dealer_account_id: dealerId,
+              customer_number: null,
+              franchise: fran,
+              min_profit_percent: Number(val),
+              min_profit_dollars: 0,
+              priority: 'percent'
+            });
+        }
+      }
+    }
     const state = getLocalStorageState();
     state.default_markups[dealerId] = data;
     saveLocalStorageState(state);
@@ -488,10 +567,130 @@ export const dataService = {
   },
 
   async getCustomers(dealerId: string): Promise<any[]> {
+    if (isSupabaseConfigured && supabase) {
+      // 1. Get all customer overrides
+      const { data: rules } = await supabase
+        .from('account_rules')
+        .select('*')
+        .eq('dealer_account_id', dealerId)
+        .not('customer_number', 'is', null);
+
+      // 2. Get price result aggregations to determine quote counts and last quote dates
+      const { data: results } = await supabase
+        .from('price_results')
+        .select('customer_number, customer_name, franchise, created_at')
+        .eq('dealer_account_id', dealerId);
+
+      // Aggregate counts & last quote
+      const statsMap: Record<string, { count: number; lastQuote: string; name: string; franchise: string }> = {};
+      if (results) {
+        results.forEach(r => {
+          if (!r.customer_number) return;
+          if (!statsMap[r.customer_number]) {
+            statsMap[r.customer_number] = { count: 0, lastQuote: '', name: r.customer_name || 'Unknown Shop', franchise: r.franchise || 'GM' };
+          }
+          statsMap[r.customer_number].count++;
+          if (!statsMap[r.customer_number].lastQuote || r.created_at > statsMap[r.customer_number].lastQuote) {
+            statsMap[r.customer_number].lastQuote = r.created_at;
+          }
+          if (r.customer_name && r.customer_name !== 'Unknown Shop') {
+            statsMap[r.customer_number].name = r.customer_name;
+          }
+        });
+      }
+
+      // Merge rules into the list of customers
+      const customersMap: Record<string, any> = {};
+
+      // Initialize from logs stats
+      Object.entries(statsMap).forEach(([num, stat]) => {
+        customersMap[num] = {
+          id: `cust-${num}`,
+          dealer_account_id: dealerId,
+          account_number: num,
+          name: stat.name,
+          franchise: stat.franchise,
+          min_markup: null,
+          quote_count: stat.count,
+          last_quote: stat.lastQuote
+        };
+      });
+
+      // Overlay rules (adding rules if they didn't have quotes logged yet)
+      if (rules) {
+        rules.forEach(rule => {
+          if (!rule.customer_number) return;
+          if (!customersMap[rule.customer_number]) {
+            customersMap[rule.customer_number] = {
+              id: rule.id,
+              dealer_account_id: dealerId,
+              account_number: rule.customer_number,
+              name: rule.customer_name || 'Shop ' + rule.customer_number,
+              franchise: rule.franchise || 'GM',
+              min_markup: Number(rule.min_profit_percent),
+              quote_count: 0,
+              last_quote: ''
+            };
+          } else {
+            customersMap[rule.customer_number].min_markup = Number(rule.min_profit_percent);
+            if (rule.customer_name) customersMap[rule.customer_number].name = rule.customer_name;
+            if (rule.franchise) customersMap[rule.customer_number].franchise = rule.franchise;
+          }
+        });
+      }
+
+      return Object.values(customersMap);
+    }
+
     return getLocalStorageState().customers.filter(c => c.dealer_account_id === dealerId);
   },
 
   async updateCustomerMarkup(dealerId: string, accountNum: string, minMarkup: number | null): Promise<boolean> {
+    if (isSupabaseConfigured && supabase) {
+      // Find if custom override already exists
+      const { data: existingRule } = await supabase
+        .from('account_rules')
+        .select('id')
+        .eq('dealer_account_id', dealerId)
+        .eq('customer_number', accountNum)
+        .maybeSingle();
+
+      if (minMarkup === null) {
+        // Delete override if set to default
+        if (existingRule) {
+          await supabase.from('account_rules').delete().eq('id', existingRule.id);
+        }
+      } else {
+        if (existingRule) {
+          await supabase
+            .from('account_rules')
+            .update({ min_profit_percent: minMarkup, updated_at: new Date().toISOString() })
+            .eq('id', existingRule.id);
+        } else {
+          // If not exists, insert override. Let's find some info about customer name from logs
+          const { data: logInfo } = await supabase
+            .from('price_results')
+            .select('customer_name, franchise')
+            .eq('dealer_account_id', dealerId)
+            .eq('customer_number', accountNum)
+            .limit(1)
+            .maybeSingle();
+
+          await supabase
+            .from('account_rules')
+            .insert({
+              dealer_account_id: dealerId,
+              customer_number: accountNum,
+              customer_name: logInfo?.customer_name || 'Shop ' + accountNum,
+              franchise: logInfo?.franchise || 'GM',
+              min_profit_percent: minMarkup,
+              min_profit_dollars: 0,
+              priority: 'percent'
+            });
+        }
+      }
+    }
+
     const state = getLocalStorageState();
     const index = state.customers.findIndex(c => c.dealer_account_id === dealerId && c.account_number === accountNum);
     if (index !== -1) {
@@ -504,31 +703,75 @@ export const dataService = {
 
   // --- LOGS & RESULTS ---
   async getPriceResults(dealerId: string): Promise<any[]> {
+    if (isSupabaseConfigured && supabase) {
+      const { data } = await supabase
+        .from('price_results')
+        .select('*')
+        .eq('dealer_account_id', dealerId)
+        .order('created_at', { ascending: false });
+      
+      if (data) return data;
+    }
     return getLocalStorageState().price_results.filter(r => r.dealer_account_id === dealerId);
   },
 
   async getAllPriceResults(): Promise<any[]> {
+    if (isSupabaseConfigured && supabase) {
+      const { data } = await supabase
+        .from('price_results')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (data) return data;
+    }
     return getLocalStorageState().price_results;
   },
 
   // --- APPROVALS QUEUE ---
   async getPendingApprovals(): Promise<any[]> {
+    if (isSupabaseConfigured && supabase) {
+      const { data } = await supabase
+        .from('pending_approvals')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (data) return data;
+    }
     return getLocalStorageState().pending_approvals;
   },
 
   async approvePendingApproval(appId: string, tempPass: string): Promise<boolean> {
+    if (isSupabaseConfigured && supabase) {
+      const { data: app } = await supabase
+        .from('pending_approvals')
+        .select('*')
+        .eq('id', appId)
+        .single();
+
+      if (app) {
+        // Create new dealer account for admin signup
+        const newDealer = await this.createDealer(app.dealer_name, 149.00, 5, 'trial', 14);
+        
+        // Create user
+        await this.createUser(newDealer.id, app.email, app.role as 'dealer_admin' | 'user', tempPass);
+
+        // Remove from pending
+        await supabase.from('pending_approvals').delete().eq('id', appId);
+        
+        // Sync local storage state too
+        const state = getLocalStorageState();
+        state.pending_approvals = state.pending_approvals.filter(x => x.id !== appId);
+        saveLocalStorageState(state);
+        
+        return true;
+      }
+    }
+
     const state = getLocalStorageState();
     const index = state.pending_approvals.findIndex(x => x.id === appId);
     if (index !== -1) {
       const app = state.pending_approvals[index];
-      
-      // Create new dealer account for admin signup
       const newDealer = await this.createDealer(app.dealer_name, 149.00, 5, 'trial', 14);
-      
-      // Create user
       await this.createUser(newDealer.id, app.email, app.role as 'dealer_admin' | 'user', tempPass);
-
-      // Remove from pending
       state.pending_approvals = state.pending_approvals.filter(x => x.id !== appId);
       saveLocalStorageState(state);
       return true;
@@ -537,6 +780,9 @@ export const dataService = {
   },
 
   async rejectPendingApproval(appId: string): Promise<boolean> {
+    if (isSupabaseConfigured && supabase) {
+      await supabase.from('pending_approvals').delete().eq('id', appId);
+    }
     const state = getLocalStorageState();
     const initialLen = state.pending_approvals.length;
     state.pending_approvals = state.pending_approvals.filter(x => x.id !== appId);
@@ -546,6 +792,12 @@ export const dataService = {
 
   // --- INVOICES ---
   async getInvoices(dealerId: string | null): Promise<any[]> {
+    if (isSupabaseConfigured && supabase) {
+      const query = supabase.from('invoices').select('*').order('date', { ascending: false });
+      if (dealerId) query.eq('dealer_account_id', dealerId);
+      const { data } = await query;
+      if (data) return data;
+    }
     const state = getLocalStorageState();
     return dealerId ? state.invoices.filter(i => i.dealer_account_id === dealerId) : state.invoices;
   },
