@@ -100,6 +100,21 @@ export default function DashboardPage() {
   };
 
   const refreshDealerData = async (dealerId: string) => {
+    // Refresh activeDealer details
+    let allDealers = await dataService.getDealers();
+    if (!allDealers || allDealers.length === 0) {
+      const mockState = typeof window !== 'undefined' ? localStorage.getItem('mpp_dashboard_state') : null;
+      if (mockState) {
+        try {
+          allDealers = JSON.parse(mockState).dealers;
+        } catch(e) {}
+      }
+    }
+    const updatedDealer = allDealers ? allDealers.find(d => d.id === dealerId) : null;
+    if (updatedDealer) {
+      setActiveDealer(updatedDealer);
+    }
+
     // Users
     const users = await dataService.getUsers(dealerId);
     setUsersList(users);
