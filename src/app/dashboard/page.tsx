@@ -629,9 +629,6 @@ export default function DashboardPage() {
                 </div>
               </>
             )}
-            <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>
-              System Status: <span className="badge badge-success">Online</span>
-            </div>
           </div>
         </div>
 
