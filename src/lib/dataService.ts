@@ -390,9 +390,31 @@ export const dataService = {
 
   async deleteDealer(dealerId: string): Promise<boolean> {
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from('dealer_accounts').delete().eq('id', dealerId);
-      if (error) {
-        console.error("Error deleting dealer account from Supabase:", error);
+      try {
+        // Manually delete dependent child rows first to avoid foreign key violations in case Cascades are not fully configured on the remote DB
+        await supabase.from('invoices').delete().eq('dealer_account_id', dealerId);
+        await supabase.from('account_rules').delete().eq('dealer_account_id', dealerId);
+        await supabase.from('price_results').delete().eq('dealer_account_id', dealerId);
+        await supabase.from('extension_sessions').delete().eq('dealer_account_id', dealerId);
+
+        // Fetch license IDs to delete sessions referencing them
+        const { data: lics } = await supabase.from('licenses').select('id').eq('dealer_account_id', dealerId);
+        if (lics && lics.length > 0) {
+          const licIds = lics.map(l => l.id);
+          await supabase.from('sessions').delete().in('license_id', licIds);
+        }
+
+        await supabase.from('licenses').delete().eq('dealer_account_id', dealerId);
+        await supabase.from('users').delete().eq('dealer_account_id', dealerId);
+
+        // Finally delete the parent dealer account row
+        const { error } = await supabase.from('dealer_accounts').delete().eq('id', dealerId);
+        if (error) {
+          console.error("Error deleting dealer account from Supabase:", error);
+          return false;
+        }
+      } catch (err) {
+        console.error("Failed to delete dealer from Supabase:", err);
         return false;
       }
     }
@@ -458,6 +480,44 @@ export const dataService = {
       return true;
     }
     return false;
+  },
+
+  async deleteUser(userId: string): Promise<boolean> {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        // Find licenses assigned to this user
+        const { data: lics } = await supabase.from('licenses').select('id').eq('user_id', userId);
+        if (lics && lics.length > 0) {
+          const licIds = lics.map(l => l.id);
+          // Terminate active sessions for these licenses
+          await supabase.from('sessions').delete().in('license_id', licIds);
+          // Dissociate from licenses (set user_id to NULL)
+          await supabase.from('licenses').update({ user_id: null }).in('id', licIds);
+        }
+        
+        // Delete the user record
+        const { error } = await supabase.from('users').delete().eq('id', userId);
+        if (error) {
+          console.error("Error deleting user from Supabase:", error);
+          return false;
+        }
+      } catch (err) {
+        console.error("Failed to delete user from Supabase:", err);
+        return false;
+      }
+    }
+
+    const state = getLocalStorageState();
+    state.users = state.users.filter(u => u.id !== userId);
+    state.licenses.forEach(l => {
+      if (l.user_id === userId) l.user_id = null;
+    });
+    state.sessions = state.sessions.filter(s => {
+      const lic = state.licenses.find(l => l.id === s.license_id);
+      return !lic || lic.user_id !== userId;
+    });
+    saveLocalStorageState(state);
+    return true;
   },
 
   // --- LICENSE & SEATS SERVICES ---

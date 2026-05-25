@@ -228,27 +228,13 @@ export default function DashboardPage() {
   // Delete User Action
   const handleDeleteUser = async (userId: string, email: string) => {
     if (!activeDealer) return;
-    // Disassociate users from active licenses
-    const userLicenses = licensesList.filter(l => l.user_id === userId);
-    for (let l of userLicenses) {
-      await dataService.assignLicense(l.id, null);
+    const success = await dataService.deleteUser(userId);
+    if (success) {
+      showToast(`User ${email} deactivated.`);
+      refreshDealerData(activeDealer.id);
+    } else {
+      showToast(`Failed to deactivate user ${email}.`, 'error');
     }
-    // Delete session
-    const userSession = sessionsList.find(s => {
-      const lic = licensesList.find(l => l.id === s.license_id);
-      return lic && lic.user_id === userId;
-    });
-    if (userSession) {
-      await dataService.kickSession(userSession.license_id);
-    }
-
-    const state = (dataService as any); // Delete from mock
-    const fs = state.getLocalStorageState();
-    fs.users = fs.users.filter((u: any) => u.id !== userId);
-    state.saveLocalStorageState(fs);
-
-    showToast(`User ${email} deactivated.`);
-    refreshDealerData(activeDealer.id);
   };
 
   // Kick Session
