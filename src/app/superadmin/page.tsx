@@ -445,7 +445,7 @@ export default function SuperadminPage() {
 
           <div style={{ marginTop: 'auto', padding: '10px 14px' }}>
             <button onClick={handleLogout} className="btn btn-secondary btn-sm" style={{ width: '100%', gap: '8px' }}>
-              🚪 <span>Log Out</span>
+              <span>Log Out</span>
             </button>
           </div>
         </ul>

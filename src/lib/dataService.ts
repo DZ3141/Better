@@ -796,6 +796,115 @@ export const dataService = {
     return false;
   },
 
+  async importCustomerOverrides(
+    dealerId: string,
+    overrides: { shopName: string; customerNumber: string; minMargin: number }[]
+  ): Promise<boolean> {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        // Fetch all existing customer rules for this dealer
+        const { data: existingRules } = await supabase
+          .from('account_rules')
+          .select('id, customer_number')
+          .eq('dealer_account_id', dealerId)
+          .not('customer_number', 'is', null);
+
+        const existingMap = new Map<string, string>();
+        if (existingRules) {
+          existingRules.forEach(r => {
+            if (r.customer_number) {
+              existingMap.set(r.customer_number, r.id);
+            }
+          });
+        }
+
+        const inserts = [];
+        const updates = [];
+
+        for (const item of overrides) {
+          const accountNum = item.customerNumber.trim();
+          if (!accountNum) continue;
+
+          const existingId = existingMap.get(accountNum);
+          if (existingId) {
+            updates.push({
+              id: existingId,
+              customer_name: item.shopName.trim(),
+              min_profit_percent: item.minMargin,
+              updated_at: new Date().toISOString()
+            });
+          } else {
+            inserts.push({
+              dealer_account_id: dealerId,
+              customer_number: accountNum,
+              customer_name: item.shopName.trim(),
+              franchise: 'GM',
+              min_profit_percent: item.minMargin,
+              min_profit_dollars: 0,
+              priority: 'percent'
+            });
+          }
+        }
+
+        if (inserts.length > 0) {
+          const { error } = await supabase.from('account_rules').insert(inserts);
+          if (error) throw error;
+        }
+
+        if (updates.length > 0) {
+          const chunkSize = 10;
+          for (let i = 0; i < updates.length; i += chunkSize) {
+            const chunk = updates.slice(i, i + chunkSize);
+            await Promise.all(
+              chunk.map(upd =>
+                supabase!
+                  .from('account_rules')
+                  .update({
+                    customer_name: upd.customer_name,
+                    min_profit_percent: upd.min_profit_percent,
+                    updated_at: upd.updated_at
+                  })
+                  .eq('id', upd.id)
+              )
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Error importing customer overrides from Supabase:", e);
+        return false;
+      }
+    }
+
+    try {
+      const state = getLocalStorageState();
+      overrides.forEach(item => {
+        const accountNum = item.customerNumber.trim();
+        if (!accountNum) return;
+        const index = state.customers.findIndex(c => c.dealer_account_id === dealerId && c.account_number === accountNum);
+        if (index !== -1) {
+          state.customers[index].name = item.shopName.trim();
+          state.customers[index].min_markup = item.minMargin;
+        } else {
+          state.customers.push({
+            id: `cust-${accountNum}`,
+            dealer_account_id: dealerId,
+            account_number: accountNum,
+            name: item.shopName.trim(),
+            franchise: 'GM',
+            min_markup: item.minMargin,
+            quote_count: 0,
+            last_quote: ''
+          });
+        }
+      });
+      saveLocalStorageState(state);
+      return true;
+    } catch (e) {
+      console.error("Error importing customer overrides locally:", e);
+      return false;
+    }
+  },
+
   // --- LOGS & RESULTS ---
   async getPriceResults(dealerId: string): Promise<any[]> {
     if (isSupabaseConfigured && supabase) {

@@ -534,7 +534,7 @@ table.data-table tbody tr:hover {
 
 .btn-primary {
   background-color: var(--color-orange-primary);
-  color: white;
+  color: #000000;
 }
 
 .btn-primary:hover {

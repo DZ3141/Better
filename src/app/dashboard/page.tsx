@@ -314,12 +314,145 @@ export default function DashboardPage() {
     router.push('/login');
   };
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleDownloadTemplate = () => {
+    const csvContent = [
+      'Shop Name,Customer Number,Minimum Margin',
+      'Example Shop A,BS-10023,12.5',
+      'Example Shop B,BS-20045,8.0'
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "mpp_customer_overrides_template.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!activeDealer) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    if (fileExt === 'xlsx' || fileExt === 'xls') {
+      showToast('Excel format (.xlsx) not supported. Please save as CSV (Comma Delimited) and upload.', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target?.result;
+      if (typeof text !== 'string') return;
+
+      try {
+        const lines = text.split(/\r?\n/);
+        if (lines.length < 2) {
+          showToast('CSV file is empty or missing headers.', 'error');
+          return;
+        }
+
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        
+        const shopNameIdx = headers.findIndex(h => h.includes('shop name') || h.includes('name'));
+        const customerNumIdx = headers.findIndex(h => h.includes('customer number') || h.includes('customer #') || h.includes('account number') || h.includes('account #'));
+        const minMarginIdx = headers.findIndex(h => h.includes('minimum margin') || h.includes('margin') || h.includes('markup'));
+
+        if (shopNameIdx === -1 || customerNumIdx === -1 || minMarginIdx === -1) {
+          showToast('Required headers not found. Ensure CSV has: "Shop Name", "Customer Number", "Minimum Margin"', 'error');
+          return;
+        }
+
+        const parsedRecords: { shopName: string; customerNumber: string; minMargin: number }[] = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          const cols: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (let charIdx = 0; charIdx < line.length; charIdx++) {
+            const char = line[charIdx];
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              cols.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          cols.push(current.trim());
+
+          const shopName = cols[shopNameIdx];
+          const customerNumber = cols[customerNumIdx];
+          const minMarginStr = cols[minMarginIdx];
+
+          if (!customerNumber) continue;
+
+          const cleanShopName = shopName ? shopName.replace(/^"|"$/g, '').trim() : 'Shop ' + customerNumber;
+          const cleanMarginStr = minMarginStr ? minMarginStr.replace(/%/g, '').trim() : '10';
+          const minMargin = parseFloat(cleanMarginStr);
+
+          if (isNaN(minMargin)) {
+            showToast(`Invalid margin value on row ${i + 1}: ${minMarginStr}`, 'error');
+            return;
+          }
+
+          parsedRecords.push({
+            shopName: cleanShopName,
+            customerNumber,
+            minMargin
+          });
+        }
+
+        if (parsedRecords.length === 0) {
+          showToast('No valid records found to import.', 'error');
+          return;
+        }
+
+        const success = await dataService.importCustomerOverrides(activeDealer.id, parsedRecords);
+        if (success) {
+          showToast(`Successfully imported ${parsedRecords.length} customer overrides!`);
+          await refreshDealerData(activeDealer.id);
+        } else {
+          showToast('Failed to save imported customer overrides.', 'error');
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Error parsing CSV file.', 'error');
+      }
+    };
+
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleTriggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
   // Helpers
   const filteredCustomers = customersList.filter(c => 
     c.name.toLowerCase().includes(searchCustomer.toLowerCase()) ||
-    c.account_number.toLowerCase().includes(searchCustomer.toLowerCase()) ||
-    c.franchise.toLowerCase().includes(searchCustomer.toLowerCase())
+    c.account_number.toLowerCase().includes(searchCustomer.toLowerCase())
   );
+
+  const calculateDaysLeft = (endsAtStr: string | null) => {
+    if (!endsAtStr) return 0;
+    const endsAt = new Date(endsAtStr);
+    const now = new Date();
+    const diffTime = endsAt.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  };
 
   const filteredLogs = logsList.filter(l => 
     l.part_number.includes(searchLog) ||
@@ -428,7 +561,7 @@ export default function DashboardPage() {
           
           <div style={{ marginTop: 'auto', padding: '10px 14px' }}>
             <button onClick={handleLogout} className="btn btn-secondary btn-sm" style={{ width: '100%', gap: '8px' }}>
-              🚪 <span>Log Out</span>
+              <span>Log Out</span>
             </button>
           </div>
         </ul>
@@ -457,7 +590,45 @@ export default function DashboardPage() {
             <p>Dealership Account: <strong>{activeDealer.name}</strong></p>
           </div>
 
-          <div className="header-actions">
+          <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {activeDealer.status === 'trial' && activeDealer.trial_ends_at && (
+              <>
+                <style>{`
+                  @keyframes pulse {
+                    0% { transform: scale(0.9); opacity: 0.6; }
+                    100% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 12px #f6b23a; }
+                  }
+                `}</style>
+                <div 
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px', 
+                    padding: '6px 12px', 
+                    borderRadius: '20px', 
+                    background: 'linear-gradient(135deg, rgba(246, 178, 58, 0.15) 0%, rgba(246, 178, 58, 0.05) 100%)', 
+                    border: '1px solid rgba(246, 178, 58, 0.3)',
+                    color: '#f6b23a',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    boxShadow: '0 4px 12px rgba(246, 178, 58, 0.05)'
+                  }}
+                >
+                  <span 
+                    style={{ 
+                      display: 'inline-block', 
+                      width: '8px', 
+                      height: '8px', 
+                      borderRadius: '50%', 
+                      backgroundColor: '#f6b23a', 
+                      boxShadow: '0 0 8px #f6b23a',
+                      animation: 'pulse 1s infinite alternate' 
+                    }} 
+                  />
+                  <span>Trial Active: {calculateDaysLeft(activeDealer.trial_ends_at)} days remaining</span>
+                </div>
+              </>
+            )}
             <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>
               System Status: <span className="badge badge-success">Online</span>
             </div>
@@ -484,11 +655,6 @@ export default function DashboardPage() {
                 <div className="stat-card-label">Unique Customers Quoted</div>
                 <div className="stat-card-value">{countUniqueCustomers}</div>
                 <div className="stat-card-subtext">Active bodyshop connections</div>
-              </div>
-              <div className="stat-card orange-accent">
-                <div className="stat-card-label">Billing Status</div>
-                <div className="stat-card-value" style={{ textTransform: 'capitalize' }}>{activeDealer.status}</div>
-                <div className="stat-card-subtext">${activeDealer.monthly_price_per_seat} / seat / mo</div>
               </div>
             </div>
 
@@ -793,13 +959,46 @@ export default function DashboardPage() {
                   <h2>Bodyshop Customer Overrides</h2>
                   <p>Define custom markup rates for specific bodyshop accounts. Overrides default and franchise settings.</p>
                 </div>
-                <div className="panel-header-actions">
+                <div className="panel-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <input 
                     type="text" 
-                    placeholder="Search by name, account #, or brand..." 
+                    placeholder="Search by name or account #..." 
                     value={searchCustomer}
                     onChange={(e) => setSearchCustomer(e.target.value)}
-                    style={{ width: '280px', padding: '8px 12px', fontSize: '13px' }}
+                    style={{ width: '240px', padding: '8px 12px', fontSize: '13px' }}
+                  />
+                  <button 
+                    onClick={handleDownloadTemplate} 
+                    className="btn btn-secondary btn-sm" 
+                    title="Download example CSV file with headers"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    <span>Template</span>
+                  </button>
+                  <button 
+                    onClick={handleTriggerFileInput} 
+                    className="btn btn-primary btn-sm" 
+                    title="Import customer overrides list from CSV"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    <span>Import</span>
+                  </button>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleImportCSV} 
+                    accept=".csv" 
+                    style={{ display: 'none' }} 
                   />
                 </div>
               </div>
@@ -810,7 +1009,6 @@ export default function DashboardPage() {
                     <tr>
                       <th>Account Code</th>
                       <th>Shop Name</th>
-                      <th>Brand</th>
                       <th>Total Quotes</th>
                       <th>Last Quote Date</th>
                       <th>Min Markup Override %</th>
@@ -821,7 +1019,6 @@ export default function DashboardPage() {
                       <tr key={c.id}>
                         <td style={{ fontFamily: 'var(--font-mono)' }}>{c.account_number}</td>
                         <td style={{ fontWeight: 600 }}>{c.name}</td>
-                        <td><span className="badge badge-info">{c.franchise}</span></td>
                         <td>{c.quote_count}</td>
                         <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                           {c.last_quote ? new Date(c.last_quote).toLocaleDateString() : 'N/A'}
@@ -839,7 +1036,7 @@ export default function DashboardPage() {
                       </tr>
                     ))}
                     {filteredCustomers.length === 0 && (
-                      <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No bodyshop customers found matching query.</td></tr>
+                      <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No bodyshop customers found matching query.</td></tr>
                     )}
                   </tbody>
                 </table>
