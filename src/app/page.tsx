@@ -115,8 +115,8 @@ export default function HomePage() {
       } else {
         setRegError('Registration request failed. Please try again.');
       }
-    } catch (err) {
-      setRegError('An error occurred during registration.');
+    } catch (err: any) {
+      setRegError(err?.message || 'An error occurred during registration.');
     } finally {
       setLoading(false);
     }
@@ -151,8 +151,8 @@ export default function HomePage() {
       } else {
         setRegError('Failed to save questionnaire. Please try again.');
       }
-    } catch (err) {
-      setRegError('An error occurred during submission.');
+    } catch (err: any) {
+      setRegError(err?.message || 'An error occurred during submission.');
     } finally {
       setLoading(false);
     }

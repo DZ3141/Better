@@ -1112,7 +1112,7 @@ export const dataService = {
     dealerName: string, 
     role: string = 'dealer_admin',
     extra: { phone?: string; city?: string; state?: string; warehouse_pickers?: number | null; drivers?: number | null } = {}
-  ): Promise<string | null> {
+  ): Promise<string> {
     const newApproval = {
       id: typeof crypto !== 'undefined' ? crypto.randomUUID() : "app-" + Math.random().toString(36).substring(4),
       email,
@@ -1134,12 +1134,22 @@ export const dataService = {
         .single();
       if (error) {
         console.error("Error creating pending approval:", error);
-        return null;
+        throw new Error(error.message || "Failed to submit registration request to database.");
       }
       return data ? data.id : newApproval.id;
     }
 
     const state = getLocalStorageState();
+    // Check if email already exists locally to match Supabase constraints
+    const exists = state.pending_approvals.some(a => a.email === email);
+    if (exists) {
+      throw new Error("A registration request for this email is already pending approval.");
+    }
+    const userExists = state.users.some(u => u.email === email);
+    if (userExists) {
+      throw new Error("This email is already associated with an active user account.");
+    }
+
     state.pending_approvals.push(newApproval);
     saveLocalStorageState(state);
     return newApproval.id;
@@ -1157,7 +1167,7 @@ export const dataService = {
         .eq('id', id);
       if (error) {
         console.error("Error updating pending approval questions:", error);
-        return false;
+        throw new Error(error.message || "Failed to update registration questionnaire.");
       }
     }
 
