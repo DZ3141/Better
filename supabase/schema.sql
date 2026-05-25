@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS dealer_accounts (
   trial_ends_at TIMESTAMPTZ,
   expires_at TIMESTAMPTZ,
   pricing_version TEXT NOT NULL DEFAULT 'stable' CHECK (pricing_version IN ('stable', 'beta')),
+  max_reimb_mode TEXT DEFAULT 'highest_price' CHECK (max_reimb_mode IN ('highest_price', 'match_non_shop')),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -73,7 +74,7 @@ CREATE TABLE IF NOT EXISTS price_results (
   reimb_amount NUMERIC,
   cost NUMERIC,
   margin_achieved NUMERIC,
-  optimization_type TEXT CHECK (optimization_type IN ('optimize', 'maintain_profit')) DEFAULT 'optimize',
+  optimization_type TEXT CHECK (optimization_type IN ('optimize', 'maintain_profit', 'max_reimbursement')) DEFAULT 'optimize',
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -119,11 +120,13 @@ CREATE TABLE IF NOT EXISTS algorithm_settings (
   maintain_profit_code TEXT NOT NULL,
   optimize_code_beta TEXT,
   maintain_profit_code_beta TEXT,
+  max_reimb_code TEXT,
+  max_reimb_code_beta TEXT,
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Seed default pricing algorithms
-INSERT INTO algorithm_settings (id, optimize_code, maintain_profit_code, optimize_code_beta, maintain_profit_code_beta)
+INSERT INTO algorithm_settings (id, optimize_code, maintain_profit_code, optimize_code_beta, maintain_profit_code_beta, max_reimb_code, max_reimb_code_beta)
 VALUES (
   'default',
   'function optimize(listPrice, cost, reimbursementRate, minProfit) {
@@ -195,6 +198,18 @@ VALUES (
     }
   }
   return Number(Math.min(listPrice, Math.max(cost * 0.5, bestPrice)).toFixed(2));
+}',
+  'function maxReimbursement(listPrice, cost, reimbursementRate, maxReimbMode) {
+  if (maxReimbMode === ''match_non_shop'') {
+    return Number((listPrice * 0.95).toFixed(2));
+  }
+  return Number(listPrice.toFixed(2));
+}',
+  'function maxReimbursement(listPrice, cost, reimbursementRate, maxReimbMode) {
+  if (maxReimbMode === ''match_non_shop'') {
+    return Number((listPrice * 0.95).toFixed(2));
+  }
+  return Number(listPrice.toFixed(2));
 }'
 )
 ON CONFLICT (id) DO NOTHING;

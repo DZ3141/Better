@@ -44,9 +44,14 @@ export async function POST(request: Request) {
 
     if (!isSupabaseConfigured || !supabase) {
       // Mock mode fallback for local testing
-      const mockOptimizedPrice = optimizationType === 'maintain_profit'
-        ? Math.max(nCost * 0.8, Number((nListPrice / (1 + nReimbRate)).toFixed(2)))
-        : Number((nCost * 1.1).toFixed(2));
+      let mockOptimizedPrice = nListPrice;
+      if (optimizationType === 'maintain_profit') {
+        mockOptimizedPrice = Math.max(nCost * 0.8, Number((nListPrice / (1 + nReimbRate)).toFixed(2)));
+      } else if (optimizationType === 'optimize') {
+        mockOptimizedPrice = Number((nCost * 1.1).toFixed(2));
+      } else if (optimizationType === 'max_reimbursement') {
+        mockOptimizedPrice = nListPrice;
+      }
       const mockReimb = Number((mockOptimizedPrice * nReimbRate).toFixed(2));
       return corsResponse({
         optimizedPrice: mockOptimizedPrice,
@@ -206,6 +211,16 @@ export async function POST(request: Request) {
             optimizedPrice = fn(nListPrice, nCost, nReimbRate, minProfit);
             algorithmUsed = isBeta ? 'dynamic-optimize-beta' : 'dynamic-optimize';
           }
+        } else if (optimizationType === 'max_reimbursement') {
+          const code = isBeta ? (algoSettings.max_reimb_code_beta || algoSettings.max_reimb_code) : algoSettings.max_reimb_code;
+          if (code) {
+            const fn = new Function('listPrice', 'cost', 'reimbursementRate', 'maxReimbMode', `
+              const algo = ${code};
+              return algo(listPrice, cost, reimbursementRate, maxReimbMode);
+            `);
+            optimizedPrice = fn(nListPrice, nCost, nReimbRate, dealer?.max_reimb_mode || 'highest_price');
+            algorithmUsed = isBeta ? 'dynamic-max-reimb-beta' : 'dynamic-max-reimb';
+          }
         }
       }
     } catch (algoErr) {
@@ -214,23 +229,32 @@ export async function POST(request: Request) {
 
     // Default Fallback if dynamic execution failed, returned NaN, or settings were missing
     if (isNaN(optimizedPrice) || algorithmUsed === 'default-binary-search') {
-      let low = nCost * 0.5;
-      let high = nListPrice;
-      let bestPrice = nListPrice;
-
-      for (let i = 0; i < 30; i++) {
-        const mid = (low + high) / 2;
-        const reimbursement = mid * nReimbRate;
-        const netProfit = mid + reimbursement - nCost;
-
-        if (netProfit >= minProfit) {
-          bestPrice = mid;
-          high = mid;
+      if (optimizationType === 'max_reimbursement') {
+        const reimbMode = dealer?.max_reimb_mode || 'highest_price';
+        if (reimbMode === 'match_non_shop') {
+          optimizedPrice = Number((nListPrice * 0.95).toFixed(2));
         } else {
-          low = mid;
+          optimizedPrice = Number(nListPrice.toFixed(2));
         }
+      } else {
+        let low = nCost * 0.5;
+        let high = nListPrice;
+        let bestPrice = nListPrice;
+
+        for (let i = 0; i < 30; i++) {
+          const mid = (low + high) / 2;
+          const reimbursement = mid * nReimbRate;
+          const netProfit = mid + reimbursement - nCost;
+
+          if (netProfit >= minProfit) {
+            bestPrice = mid;
+            high = mid;
+          } else {
+            low = mid;
+          }
+        }
+        optimizedPrice = Number(Math.min(nListPrice, Math.max(nCost * 0.5, bestPrice)).toFixed(2));
       }
-      optimizedPrice = Number(Math.min(nListPrice, Math.max(nCost * 0.5, bestPrice)).toFixed(2));
     }
 
     const reimbursementAmount = Number((optimizedPrice * nReimbRate).toFixed(2));

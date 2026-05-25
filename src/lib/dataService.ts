@@ -12,6 +12,7 @@ export interface Dealer {
   expires_at: string | null;
   pricing_version: 'stable' | 'beta';
   franchises: string[];
+  max_reimb_mode?: 'highest_price' | 'match_non_shop';
   created_at: string;
 }
 
@@ -120,9 +121,9 @@ export interface AppState {
 // --- SEED DATA STRUCTURE ---
 const SEED_DATA: AppState = {
   dealers: [
-    { id: "h1", name: "Hendrick Automotive Group", odoo_customer_id: "odoo_Hndrk9823", odoo_contract_id: "contract_1", monthly_price_per_seat: 149.00, license_count: 5, status: "trial", trial_ends_at: "2026-06-15T00:00:00Z", expires_at: null, pricing_version: "stable", franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], created_at: "2026-01-10T08:00:00Z" },
-    { id: "a1", name: "AutoNation Ford", odoo_customer_id: "odoo_AutoN4412", odoo_contract_id: "contract_2", monthly_price_per_seat: 129.00, license_count: 12, status: "active", trial_ends_at: null, expires_at: null, pricing_version: "stable", franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], created_at: "2026-02-15T09:30:00Z" },
-    { id: "l1", name: "Lithia Chrysler Jeep", odoo_customer_id: "odoo_Lithia8823", odoo_contract_id: "contract_3", monthly_price_per_seat: 149.00, license_count: 3, status: "active", trial_ends_at: null, expires_at: null, pricing_version: "stable", franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], created_at: "2026-03-01T10:00:00Z" }
+    { id: "h1", name: "Hendrick Automotive Group", odoo_customer_id: "odoo_Hndrk9823", odoo_contract_id: "contract_1", monthly_price_per_seat: 149.00, license_count: 5, status: "trial", trial_ends_at: "2026-06-15T00:00:00Z", expires_at: null, pricing_version: "stable", franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], max_reimb_mode: "highest_price" as const, created_at: "2026-01-10T08:00:00Z" },
+    { id: "a1", name: "AutoNation Ford", odoo_customer_id: "odoo_AutoN4412", odoo_contract_id: "contract_2", monthly_price_per_seat: 129.00, license_count: 12, status: "active", trial_ends_at: null, expires_at: null, pricing_version: "stable", franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], max_reimb_mode: "highest_price" as const, created_at: "2026-02-15T09:30:00Z" },
+    { id: "l1", name: "Lithia Chrysler Jeep", odoo_customer_id: "odoo_Lithia8823", odoo_contract_id: "contract_3", monthly_price_per_seat: 149.00, license_count: 3, status: "active", trial_ends_at: null, expires_at: null, pricing_version: "stable", franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], max_reimb_mode: "highest_price" as const, created_at: "2026-03-01T10:00:00Z" }
   ],
   users: [
     { id: "u1", dealer_account_id: "h1", email: "admin@hendrickauto.com", role: "dealer_admin", temp_password: null, password_reset_required: false, created_at: "2026-01-10T08:05:00Z" },
@@ -286,6 +287,7 @@ export const dataService = {
       trial_ends_at: status === 'trial' ? trialEnds.toISOString() : null,
       expires_at: null,
       pricing_version: 'stable' as const,
+      max_reimb_mode: 'highest_price' as const,
       franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"],
       created_at: new Date().toISOString()
     };
@@ -1018,7 +1020,9 @@ export const dataService = {
         return {
           ...data,
           optimize_code_beta: data.optimize_code_beta || data.optimize_code,
-          maintain_profit_code_beta: data.maintain_profit_code_beta || data.maintain_profit_code
+          maintain_profit_code_beta: data.maintain_profit_code_beta || data.maintain_profit_code,
+          max_reimb_code: data.max_reimb_code || '',
+          max_reimb_code_beta: data.max_reimb_code_beta || ''
         };
       }
     }
@@ -1031,7 +1035,9 @@ export const dataService = {
           return {
             ...parsed,
             optimize_code_beta: parsed.optimize_code_beta || parsed.optimize_code,
-            maintain_profit_code_beta: parsed.maintain_profit_code_beta || parsed.maintain_profit_code
+            maintain_profit_code_beta: parsed.maintain_profit_code_beta || parsed.maintain_profit_code,
+            max_reimb_code: parsed.max_reimb_code || '',
+            max_reimb_code_beta: parsed.max_reimb_code_beta || ''
           };
         } catch (e) {}
       }
@@ -1107,6 +1113,18 @@ export const dataService = {
     }
   }
   return Number(Math.min(listPrice, Math.max(cost * 0.5, bestPrice)).toFixed(2));
+}`,
+      max_reimb_code: `function maxReimbursement(listPrice, cost, reimbursementRate, maxReimbMode) {
+  if (maxReimbMode === 'match_non_shop') {
+    return Number((listPrice * 0.95).toFixed(2));
+  }
+  return Number(listPrice.toFixed(2));
+}`,
+      max_reimb_code_beta: `function maxReimbursement(listPrice, cost, reimbursementRate, maxReimbMode) {
+  if (maxReimbMode === 'match_non_shop') {
+    return Number((listPrice * 0.95).toFixed(2));
+  }
+  return Number(listPrice.toFixed(2));
 }`
     };
     if (typeof window !== 'undefined') {
@@ -1115,7 +1133,14 @@ export const dataService = {
     return defaultVal;
   },
 
-  async saveAlgorithmSettings(optimizeCode: string, maintainProfitCode: string, optimizeCodeBeta?: string, maintainProfitCodeBeta?: string) {
+  async saveAlgorithmSettings(
+    optimizeCode: string, 
+    maintainProfitCode: string, 
+    optimizeCodeBeta?: string, 
+    maintainProfitCodeBeta?: string,
+    maxReimbCode?: string,
+    maxReimbCodeBeta?: string
+  ) {
     if (isSupabaseConfigured && supabase) {
       const { error } = await supabase
         .from('algorithm_settings')
@@ -1125,6 +1150,8 @@ export const dataService = {
           maintain_profit_code: maintainProfitCode,
           optimize_code_beta: optimizeCodeBeta || optimizeCode,
           maintain_profit_code_beta: maintainProfitCodeBeta || maintainProfitCode,
+          max_reimb_code: maxReimbCode || '',
+          max_reimb_code_beta: maxReimbCodeBeta || '',
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
       if (error) {
@@ -1139,7 +1166,9 @@ export const dataService = {
         optimize_code: optimizeCode,
         maintain_profit_code: maintainProfitCode,
         optimize_code_beta: optimizeCodeBeta || optimizeCode,
-        maintain_profit_code_beta: maintainProfitCodeBeta || maintainProfitCode
+        maintain_profit_code_beta: maintainProfitCodeBeta || maintainProfitCode,
+        max_reimb_code: maxReimbCode || '',
+        max_reimb_code_beta: maxReimbCodeBeta || ''
       }));
     }
     return true;

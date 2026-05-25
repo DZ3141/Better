@@ -49,6 +49,8 @@ export default function SuperadminPage() {
   const [maintainProfitCode, setMaintainProfitCode] = useState('');
   const [optimizeCodeBeta, setOptimizeCodeBeta] = useState('');
   const [maintainProfitCodeBeta, setMaintainProfitCodeBeta] = useState('');
+  const [maxReimbCode, setMaxReimbCode] = useState('');
+  const [maxReimbCodeBeta, setMaxReimbCodeBeta] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -130,6 +132,8 @@ export default function SuperadminPage() {
     setMaintainProfitCode(algo.maintain_profit_code);
     setOptimizeCodeBeta(algo.optimize_code_beta);
     setMaintainProfitCodeBeta(algo.maintain_profit_code_beta);
+    setMaxReimbCode(algo.max_reimb_code);
+    setMaxReimbCodeBeta(algo.max_reimb_code_beta);
   };
 
   const handleSaveAlgorithms = async () => {
@@ -146,12 +150,25 @@ export default function SuperadminPage() {
       new Function('listPrice', 'cost', 'reimbursementRate', `
         const testFn = ${maintainProfitCodeBeta};
       `);
+      new Function('listPrice', 'cost', 'reimbursementRate', 'maxReimbMode', `
+        const testFn = ${maxReimbCode};
+      `);
+      new Function('listPrice', 'cost', 'reimbursementRate', 'maxReimbMode', `
+        const testFn = ${maxReimbCodeBeta};
+      `);
     } catch (err: any) {
       showToast(`Syntax Error in JavaScript code: ${err.message}`, 'error');
       return;
     }
 
-    const success = await dataService.saveAlgorithmSettings(optimizeCode, maintainProfitCode, optimizeCodeBeta, maintainProfitCodeBeta);
+    const success = await dataService.saveAlgorithmSettings(
+      optimizeCode, 
+      maintainProfitCode, 
+      optimizeCodeBeta, 
+      maintainProfitCodeBeta,
+      maxReimbCode,
+      maxReimbCodeBeta
+    );
     if (success) {
       showToast('Pricing algorithms updated successfully!');
       loadSuperData();
@@ -924,6 +941,29 @@ export default function SuperadminPage() {
                       placeholder="function maintainProfit(...) { ... }"
                     />
                   </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-orange-primary)', marginBottom: '8px', display: 'block' }}>
+                      3. Stable Max Reimbursement Code
+                    </label>
+                    <textarea
+                      rows={12}
+                      value={maxReimbCode}
+                      onChange={(e) => setMaxReimbCode(e.target.value)}
+                      style={{
+                        width: '100%',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '13px',
+                        backgroundColor: 'var(--bg-surface-elevated)',
+                        border: '1px solid var(--border-dim)',
+                        color: 'white',
+                        padding: '16px',
+                        borderRadius: '8px',
+                        lineHeight: '1.5'
+                      }}
+                      placeholder="function maxReimbursement(...) { ... }"
+                    />
+                  </div>
                 </div>
 
                 {/* Column 2: Beta Engines */}
@@ -932,7 +972,7 @@ export default function SuperadminPage() {
                   
                   <div className="form-group" style={{ margin: 0 }}>
                     <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-orange-primary)', marginBottom: '8px', display: 'block' }}>
-                      3. Beta Optimize Code
+                      4. Beta Optimize Code
                     </label>
                     <textarea
                       rows={12}
@@ -955,7 +995,7 @@ export default function SuperadminPage() {
 
                   <div className="form-group" style={{ margin: 0 }}>
                     <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-orange-primary)', marginBottom: '8px', display: 'block' }}>
-                      4. Beta Maintain Profit Code
+                      5. Beta Maintain Profit Code
                     </label>
                     <textarea
                       rows={12}
@@ -973,6 +1013,29 @@ export default function SuperadminPage() {
                         lineHeight: '1.5'
                       }}
                       placeholder="function maintainProfit(...) { ... }"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-orange-primary)', marginBottom: '8px', display: 'block' }}>
+                      6. Beta Max Reimbursement Code
+                    </label>
+                    <textarea
+                      rows={12}
+                      value={maxReimbCodeBeta}
+                      onChange={(e) => setMaxReimbCodeBeta(e.target.value)}
+                      style={{
+                        width: '100%',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '13px',
+                        backgroundColor: 'var(--bg-surface-elevated)',
+                        border: '1px solid var(--border-dim)',
+                        color: 'white',
+                        padding: '16px',
+                        borderRadius: '8px',
+                        lineHeight: '1.5'
+                      }}
+                      placeholder="function maxReimbursement(...) { ... }"
                     />
                   </div>
                 </div>

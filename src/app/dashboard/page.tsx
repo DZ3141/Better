@@ -571,6 +571,82 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* Maximum Reimbursement Configuration Card */}
+            <div className="content-panel">
+              <div className="panel-header" style={{ borderBottom: '1px solid var(--border-dim)', paddingBottom: '12px' }}>
+                <div className="panel-header-titles">
+                  <h2>Maximum Reimbursement Mode</h2>
+                  <p>Configure extension behavior when the Max Reimb button is clicked.</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginTop: '16px' }}>
+                <div 
+                  onClick={async () => {
+                    await dataService.updateDealer(activeDealer.id, { max_reimb_mode: 'highest_price' });
+                    showToast('Max Reimbursement set to Highest Price mode.');
+                    refreshDealerData(activeDealer.id);
+                  }}
+                  style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    background: activeDealer.max_reimb_mode !== 'match_non_shop' ? 'rgba(246, 178, 58, 0.05)' : 'var(--bg-surface-elevated)', 
+                    padding: '16px', 
+                    borderRadius: '8px', 
+                    border: activeDealer.max_reimb_mode !== 'match_non_shop' ? '1px solid var(--color-orange-primary)' : '1px solid var(--border-dim)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff' }}>Highest Price with Max Reimb</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Yields maximum reimbursement with the highest possible sales price.</div>
+                  </div>
+                  <input 
+                    type="radio" 
+                    name="max_reimb_mode" 
+                    value="highest_price"
+                    checked={activeDealer.max_reimb_mode !== 'match_non_shop'}
+                    readOnly
+                    style={{ cursor: 'pointer', width: '18px', height: '18px', accentColor: 'var(--color-orange-primary)' }}
+                  />
+                </div>
+
+                <div 
+                  onClick={async () => {
+                    await dataService.updateDealer(activeDealer.id, { max_reimb_mode: 'match_non_shop' });
+                    showToast('Max Reimbursement set to Match Non-Shop OE mode.');
+                    refreshDealerData(activeDealer.id);
+                  }}
+                  style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    background: activeDealer.max_reimb_mode === 'match_non_shop' ? 'rgba(246, 178, 58, 0.05)' : 'var(--bg-surface-elevated)', 
+                    padding: '16px', 
+                    borderRadius: '8px', 
+                    border: activeDealer.max_reimb_mode === 'match_non_shop' ? '1px solid var(--color-orange-primary)' : '1px solid var(--border-dim)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff' }}>Max Reimb & Match Non-Shop OE</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Optimizes for maximum reimbursement and matches non-shop OE price.</div>
+                  </div>
+                  <input 
+                    type="radio" 
+                    name="max_reimb_mode" 
+                    value="match_non_shop"
+                    checked={activeDealer.max_reimb_mode === 'match_non_shop'}
+                    readOnly
+                    style={{ cursor: 'pointer', width: '18px', height: '18px', accentColor: 'var(--color-orange-primary)' }}
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="grid-2col">
               {/* Recent Quote Activity */}
               <div className="content-panel">
