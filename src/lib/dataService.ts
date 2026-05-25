@@ -332,7 +332,7 @@ export const dataService = {
   },
 
   async updateDealer(dealerId: string, updates: Partial<typeof SEED_DATA.dealers[0]>): Promise<boolean> {
-    if (isSupabaseConfigured && supabase) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
       // Omit franchises before updating Supabase
       const dbUpdates = { ...updates } as any;
       delete dbUpdates.franchises;
@@ -356,7 +356,7 @@ export const dataService = {
             user_id: null,
             created_at: new Date().toISOString()
           };
-          if (isSupabaseConfigured && supabase) {
+          if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
             await supabase.from('licenses').insert(newLicense);
           }
           state.licenses.push(newLicense);
@@ -370,7 +370,7 @@ export const dataService = {
         const unassigned = licensesForDealer.filter(l => l.user_id === null);
         for (const l of unassigned) {
           if (removeCount <= 0) break;
-          if (isSupabaseConfigured && supabase) {
+          if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
             await supabase.from('licenses').delete().eq('id', l.id);
           }
           state.licenses = state.licenses.filter(x => x.id !== l.id);
@@ -381,7 +381,7 @@ export const dataService = {
           const assigned = licensesForDealer.filter(l => l.user_id !== null);
           for (const l of assigned) {
             if (removeCount <= 0) break;
-            if (isSupabaseConfigured && supabase) {
+            if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
               await supabase.from('licenses').delete().eq('id', l.id);
             }
             state.licenses = state.licenses.filter(x => x.id !== l.id);
@@ -396,7 +396,7 @@ export const dataService = {
   },
 
   async deleteDealer(dealerId: string): Promise<boolean> {
-    if (isSupabaseConfigured && supabase) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
       try {
         // Manually delete dependent child rows first to avoid foreign key violations in case Cascades are not fully configured on the remote DB
         await supabase.from('invoices').delete().eq('dealer_account_id', dealerId);

@@ -253,6 +253,7 @@ export default function DashboardPage() {
     if (newSeats === currentSeats) return;
 
     await dataService.updateDealer(activeDealer.id, { license_count: newSeats });
+    await dataService.logLicenseChange(activeDealer.name, `Client self-adjusted seat allocations from ${currentSeats} to ${newSeats}.`);
     
     // Send alert email to Shane (notifications)
     const rate = activeDealer.monthly_price_per_seat;
