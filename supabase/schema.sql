@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS pending_approvals (
   role TEXT CHECK (role IN ('dealer_admin', 'user')) DEFAULT 'dealer_admin',
   warehouse_pickers INTEGER DEFAULT NULL,
   drivers INTEGER DEFAULT NULL,
+  collisionlink_users INTEGER DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

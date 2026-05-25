@@ -655,7 +655,7 @@ export default function SuperadminPage() {
                               Ph: {app.phone || '-'} | Loc: {app.city && app.state ? `${app.city}, ${app.state}` : app.city || app.state || '-'}
                             </div>
                             <div style={{ fontSize: '11px', color: 'var(--color-orange-primary)', marginTop: '1px' }}>
-                              Pickers: {app.warehouse_pickers ?? '-'} | Drivers: {app.drivers ?? '-'}
+                              Pickers: {app.warehouse_pickers ?? '-'} | Drivers: {app.drivers ?? '-'} | Sales Users: {app.collisionlink_users ?? '-'}
                             </div>
                           </td>
                           <td style={{ display: 'flex', gap: '8px' }}>
@@ -792,6 +792,7 @@ export default function SuperadminPage() {
                     <th>Location</th>
                     <th>Pickers</th>
                     <th>Drivers</th>
+                    <th>Sales Users</th>
                     <th>Registration Date</th>
                     <th>Action Controls</th>
                   </tr>
@@ -809,6 +810,9 @@ export default function SuperadminPage() {
                       <td style={{ fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
                         {app.drivers !== null && app.drivers !== undefined ? app.drivers : '-'}
                       </td>
+                      <td style={{ fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
+                        {app.collisionlink_users !== null && app.collisionlink_users !== undefined ? app.collisionlink_users : '-'}
+                      </td>
                       <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                         {new Date(app.created_at).toLocaleString()}
                       </td>
@@ -819,7 +823,7 @@ export default function SuperadminPage() {
                     </tr>
                   ))}
                   {approvalsList.length === 0 && (
-                    <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No signups are currently pending approval.</td></tr>
+                    <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No signups are currently pending approval.</td></tr>
                   )}
                 </tbody>
               </table>

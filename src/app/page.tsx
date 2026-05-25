@@ -35,6 +35,7 @@ export default function HomePage() {
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [followUpPickers, setFollowUpPickers] = useState('');
   const [followUpDrivers, setFollowUpDrivers] = useState('');
+  const [followUpSalesUsers, setFollowUpSalesUsers] = useState('');
   const [followUpSubmitted, setFollowUpSubmitted] = useState(false);
   const [pendingApprovalId, setPendingApprovalId] = useState('');
 
@@ -126,7 +127,7 @@ export default function HomePage() {
     e.preventDefault();
     setRegError('');
 
-    if (!followUpPickers || !followUpDrivers) {
+    if (!followUpPickers || !followUpDrivers || !followUpSalesUsers) {
       setRegError('Please fill in all fields.');
       return;
     }
@@ -136,7 +137,8 @@ export default function HomePage() {
       const success = await dataService.updatePendingApprovalQuestions(
         pendingApprovalId,
         Number(followUpPickers),
-        Number(followUpDrivers)
+        Number(followUpDrivers),
+        Number(followUpSalesUsers)
       );
       if (success) {
         setRegSuccess(true);
@@ -147,6 +149,7 @@ export default function HomePage() {
         setRegState('');
         setFollowUpPickers('');
         setFollowUpDrivers('');
+        setFollowUpSalesUsers('');
         setShowFollowUp(false);
       } else {
         setRegError('Failed to save questionnaire. Please try again.');
@@ -557,6 +560,20 @@ export default function HomePage() {
                       value={followUpDrivers}
                       onChange={(e) => setFollowUpDrivers(e.target.value)}
                       placeholder="e.g. 3"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label htmlFor="sales-users" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>CollisionLink Sales Users</label>
+                    <input 
+                      type="number" 
+                      id="sales-users" 
+                      required 
+                      min="0"
+                      value={followUpSalesUsers}
+                      onChange={(e) => setFollowUpSalesUsers(e.target.value)}
+                      placeholder="e.g. 8"
                       style={{ width: '100%' }}
                     />
                   </div>
