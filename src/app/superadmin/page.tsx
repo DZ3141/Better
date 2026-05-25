@@ -374,7 +374,8 @@ export default function SuperadminPage() {
     const app = approvalsList.find(a => a.id === appId);
     await dataService.approvePendingApproval(appId, tempPassword);
     if (app) {
-      await dataService.logLicenseChange(app.dealer_name, `Registration approved. Provisioned 5 seats at $149.00/seat/mo.`);
+      const detailsStr = `Registration approved. Provisioned 5 seats at $149.00/seat/mo. Info: Ph: ${app.phone || '-'}, Loc: ${app.city && app.state ? `${app.city}, ${app.state}` : app.city || app.state || '-'}, Pickers: ${app.warehouse_pickers ?? '-'}, Drivers: ${app.drivers ?? '-'}`;
+      await dataService.logLicenseChange(app.dealer_name, detailsStr);
     }
     
     // Send welcome email
@@ -648,7 +649,15 @@ export default function SuperadminPage() {
                       {approvalsList.map(app => (
                         <tr key={app.id}>
                           <td style={{ fontWeight: 600 }}>{app.email}</td>
-                          <td>{app.dealer_name}</td>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{app.dealer_name}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                              Ph: {app.phone || '-'} | Loc: {app.city && app.state ? `${app.city}, ${app.state}` : app.city || app.state || '-'}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--color-orange-primary)', marginTop: '1px' }}>
+                              Pickers: {app.warehouse_pickers ?? '-'} | Drivers: {app.drivers ?? '-'}
+                            </div>
+                          </td>
                           <td style={{ display: 'flex', gap: '8px' }}>
                             <button className="btn btn-success btn-sm" onClick={() => handleApproveSignup(app.id, app.email)}>Approve</button>
                             <button className="btn btn-danger btn-sm" onClick={() => handleRejectSignup(app.id)}>Reject</button>
