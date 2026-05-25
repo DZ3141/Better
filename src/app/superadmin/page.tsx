@@ -33,7 +33,7 @@ export default function SuperadminPage() {
   // Extend Trial Modal
   const [trialModalOpen, setTrialModalOpen] = useState(false);
   const [selectedDealerId, setSelectedDealerId] = useState('');
-  const [trialExtendDays, setTrialExtendDays] = useState(14);
+  const [trialEndDate, setTrialEndDate] = useState('');
   const [hardExpiryDate, setHardExpiryDate] = useState('');
 
   // Password reset search
@@ -227,6 +227,19 @@ export default function SuperadminPage() {
   // Extend trial / set hard expiration dates
   const handleOpenExtendTrial = (dealerId: string) => {
     setSelectedDealerId(dealerId);
+    const dealer = dealers.find(d => d.id === dealerId);
+    if (dealer) {
+      if (dealer.trial_ends_at) {
+        setTrialEndDate(new Date(dealer.trial_ends_at).toISOString().split('T')[0]);
+      } else {
+        setTrialEndDate('');
+      }
+      if (dealer.expires_at) {
+        setHardExpiryDate(new Date(dealer.expires_at).toISOString().split('T')[0]);
+      } else {
+        setHardExpiryDate('');
+      }
+    }
     setTrialModalOpen(true);
   };
 
@@ -237,16 +250,13 @@ export default function SuperadminPage() {
 
     const updates: any = {};
     if (dealer.status === 'trial') {
-      const currentTrialEnd = dealer.trial_ends_at ? new Date(dealer.trial_ends_at) : new Date();
-      currentTrialEnd.setDate(currentTrialEnd.getDate() + Number(trialExtendDays));
-      updates.trial_ends_at = currentTrialEnd.toISOString();
+      updates.trial_ends_at = trialEndDate ? new Date(trialEndDate).toISOString() : null;
     }
-    if (hardExpiryDate) {
-      updates.expires_at = new Date(hardExpiryDate).toISOString();
-    }
+    updates.expires_at = hardExpiryDate ? new Date(hardExpiryDate).toISOString() : null;
 
     await dataService.updateDealer(selectedDealerId, updates);
     setTrialModalOpen(false);
+    setTrialEndDate('');
     setHardExpiryDate('');
     showToast('Dealer license updates applied.');
     loadSuperData();
@@ -1148,16 +1158,14 @@ export default function SuperadminPage() {
             <form onSubmit={handleSaveTrialExtension}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div className="form-group">
-                  <label htmlFor="trial-extend">Add Days to Trial Period</label>
+                  <label htmlFor="trial-end-date">Trial Expiration Date</label>
                   <input 
-                    type="number" 
-                    id="trial-extend" 
-                    required 
-                    min="1"
-                    value={trialExtendDays}
-                    onChange={(e) => setTrialExtendDays(Number(e.target.value))}
+                    type="date" 
+                    id="trial-end-date" 
+                    value={trialEndDate}
+                    onChange={(e) => setTrialEndDate(e.target.value)}
                   />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Only applies if dealer is in a trial status stage.</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Only applies if dealer is in a trial status stage. Leave blank to clear.</span>
                 </div>
 
                 <div className="form-group">
