@@ -9,6 +9,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [dealers, setDealers] = useState<any[]>([]);
   const [activeDealer, setActiveDealer] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Layout Tab State
   const [activeTab, setActiveTab] = useState('dealer-overview');
@@ -55,7 +56,7 @@ export default function DashboardPage() {
           return;
         }
         setUser(u);
-        loadInitialData(u);
+        loadInitialData(u).finally(() => setIsLoading(false));
       } catch (e) {
         router.push('/login');
       }
@@ -353,8 +354,32 @@ export default function DashboardPage() {
   const countUniqueCustomers = new Set(logsList.map(l => l.customer_number)).size;
   const countAssignedSeats = licensesList.filter(l => l.user_id !== null).length;
 
-  if (!user) {
-    return <div style={{ color: 'white', padding: '40px', fontFamily: 'sans-serif' }}>Loading dashboard session...</div>;
+  if (!user || isLoading) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        backgroundColor: '#0b0b0a', 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center',
+        gap: '24px',
+        fontFamily: 'Outfit, sans-serif'
+      }}>
+        {/* Animated spinner */}
+        <div style={{
+          width: '48px',
+          height: '48px',
+          border: '3px solid rgba(246, 178, 58, 0.15)',
+          borderTop: '3px solid #f6b23a',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite'
+        }} />
+        <div style={{ color: '#f6b23a', fontSize: '15px', fontWeight: 600, letterSpacing: '0.05em' }}>Loading Dashboard</div>
+        <div style={{ color: '#666', fontSize: '12px' }}>Fetching dealer data…</div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
   }
 
   if (!activeDealer) {
@@ -382,9 +407,12 @@ export default function DashboardPage() {
 
       {/* Sidebar Navigation */}
       <aside className="sidebar">
-        <div className="sidebar-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', padding: '20px' }}>
-          <img src="/extension/my-part-pros-lg.svg" alt="My Part Pros" style={{ height: '40px', width: 'auto' }} />
-          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-orange-primary)', letterSpacing: '0.1em', marginTop: '4px' }}>Price Optimizer</div>
+        <div className="sidebar-header">
+          <div className="logo-container">M</div>
+          <div>
+            <div className="brand-name">My Part Pros</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-orange-primary)', letterSpacing: '0.1em', marginTop: '2px' }}>Price Optimizer</div>
+          </div>
         </div>
 
         <ul className="sidebar-menu">
@@ -392,49 +420,37 @@ export default function DashboardPage() {
           <li>
             <a className={`menu-item ${activeTab === 'dealer-overview' ? 'active' : ''}`} onClick={() => setActiveTab('dealer-overview')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
-              Overview
+              <span>Overview</span>
             </a>
           </li>
           <li>
             <a className={`menu-item ${activeTab === 'dealer-rules' ? 'active' : ''}`} onClick={() => setActiveTab('dealer-rules')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
-              Customer Markup
-            </a>
-          </li>
-          <li>
-            <a className={`menu-item ${activeTab === 'dealer-seats' ? 'active' : ''}`} onClick={() => setActiveTab('dealer-seats')}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-              Licenses & Seats
+              <span>Customer Markup</span>
             </a>
           </li>
           <li>
             <a className={`menu-item ${activeTab === 'dealer-users' ? 'active' : ''}`} onClick={() => setActiveTab('dealer-users')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-              Manage Users
-            </a>
-          </li>
-          <li>
-            <a className={`menu-item ${activeTab === 'dealer-sessions' ? 'active' : ''}`} onClick={() => setActiveTab('dealer-sessions')}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-              Active Sessions
+              <span>Users & Licenses</span>
             </a>
           </li>
           <li>
             <a className={`menu-item ${activeTab === 'dealer-results' ? 'active' : ''}`} onClick={() => setActiveTab('dealer-results')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-              Optimization Log
+              <span>Optimization Log</span>
             </a>
           </li>
           <li>
             <a className={`menu-item ${activeTab === 'dealer-billing' ? 'active' : ''}`} onClick={() => setActiveTab('dealer-billing')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-              Odoo & Billing
+              <span>Odoo & Billing</span>
             </a>
           </li>
           
           <div style={{ marginTop: 'auto', padding: '10px 14px' }}>
             <button onClick={handleLogout} className="btn btn-secondary btn-sm" style={{ width: '100%', gap: '8px' }}>
-              🚪 Log Out
+              🚪 <span>Log Out</span>
             </button>
           </div>
         </ul>
@@ -495,6 +511,85 @@ export default function DashboardPage() {
                 <div className="stat-card-label">Billing Status</div>
                 <div className="stat-card-value" style={{ textTransform: 'capitalize' }}>{activeDealer.status}</div>
                 <div className="stat-card-subtext">${activeDealer.monthly_price_per_seat} / seat / mo</div>
+              </div>
+            </div>
+
+            {/* Pricing Engine Stable vs Beta Toggle card */}
+            <div className="content-panel">
+              <div className="panel-header" style={{ borderBottom: '1px solid var(--border-dim)', paddingBottom: '12px' }}>
+                <div className="panel-header-titles">
+                  <h2>Pricing Engine optimization mode</h2>
+                  <p>Toggle between standard Stable and experimental Beta calculation algorithm instances.</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginTop: '16px' }}>
+                <div 
+                  onClick={async () => {
+                    await dataService.updateDealer(activeDealer.id, { pricing_version: 'stable' });
+                    showToast('Pricing engine switched to Stable mode.');
+                    refreshDealerData(activeDealer.id);
+                  }}
+                  style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    background: activeDealer.pricing_version !== 'beta' ? 'rgba(246, 178, 58, 0.05)' : 'var(--bg-surface-elevated)', 
+                    padding: '16px', 
+                    borderRadius: '8px', 
+                    border: activeDealer.pricing_version !== 'beta' ? '1px solid var(--color-orange-primary)' : '1px solid var(--border-dim)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff' }}>Stable Engine</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Tried-and-tested production calculations.</div>
+                  </div>
+                  <input 
+                    type="radio" 
+                    name="pricing_version" 
+                    value="stable"
+                    checked={activeDealer.pricing_version !== 'beta'}
+                    readOnly
+                    style={{ cursor: 'pointer', width: '18px', height: '18px', accentColor: 'var(--color-orange-primary)' }}
+                  />
+                </div>
+
+                <div 
+                  onClick={async () => {
+                    await dataService.updateDealer(activeDealer.id, { pricing_version: 'beta' });
+                    showToast('Pricing engine switched to Beta mode.');
+                    refreshDealerData(activeDealer.id);
+                  }}
+                  style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    background: activeDealer.pricing_version === 'beta' ? 'rgba(246, 178, 58, 0.05)' : 'var(--bg-surface-elevated)', 
+                    padding: '16px', 
+                    borderRadius: '8px', 
+                    border: activeDealer.pricing_version === 'beta' ? '1px solid var(--color-orange-primary)' : '1px solid var(--border-dim)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff' }}>Beta Engine</div>
+                      <span className="badge badge-warning" style={{ fontSize: '9px', padding: '2px 6px', fontWeight: 700 }}>BETA</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Try our newest logic iterations.</div>
+                  </div>
+                  <input 
+                    type="radio" 
+                    name="pricing_version" 
+                    value="beta"
+                    checked={activeDealer.pricing_version === 'beta'}
+                    readOnly
+                    style={{ cursor: 'pointer', width: '18px', height: '18px', accentColor: 'var(--color-orange-primary)' }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -600,7 +695,8 @@ export default function DashboardPage() {
                       type="number" 
                       value={masterMarkup} 
                       onChange={(e) => setMasterMarkup(Number(e.target.value))}
-                      style={{ width: '120px', fontSize: '24px', textAlign: 'center', fontFamily: 'var(--font-mono)', fontWeight: 700 }}
+                      className="margin-input"
+                      style={{ width: '120px', fontSize: '24px', textAlign: 'center', fontWeight: 700, padding: '8px' }}
                     />
                     <span style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-muted)' }}>%</span>
                   </div>
@@ -627,6 +723,7 @@ export default function DashboardPage() {
                         value={franchiseMarkups[f] !== undefined ? franchiseMarkups[f] : ''} 
                         placeholder={`${masterMarkup}%`}
                         onChange={(e) => handleSaveFranchiseMarkup(f, Number(e.target.value))}
+                        className="margin-input"
                         style={{ width: '80px', padding: '6px', textAlign: 'center', fontSize: '12px' }}
                       />
                     </div>
@@ -681,6 +778,7 @@ export default function DashboardPage() {
                             defaultValue={c.min_markup !== null ? c.min_markup : ''} 
                             placeholder="Default Fallback"
                             onBlur={(e) => handleSaveCustomerMarkup(c.account_number, e.target.value)}
+                            className="margin-input"
                             style={{ width: '120px', padding: '6px 12px', fontSize: '13px', textAlign: 'center' }}
                           />
                         </td>
@@ -697,194 +795,191 @@ export default function DashboardPage() {
         )}
 
         {/* ============================================== */}
-        {/* VIEW: SEATS */}
+        {/* VIEW: USERS & LICENSES (UNIFIED) */}
         {/* ============================================== */}
-        {activeTab === 'dealer-seats' && (
-          <div className="content-panel">
-            <div className="panel-header">
-              <div className="panel-header-titles">
-                <h2>Active Seats & Licenses</h2>
-                <p>Map license seat keys to authorized users. Unassigned licenses do not allow extension login.</p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                  Seats Used: <strong className="text-orange">{countAssignedSeats} / {activeDealer.license_count}</strong>
+        {activeTab === 'dealer-users' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            
+            {/* Panel 1: User Directory */}
+            <div className="content-panel">
+              <div className="panel-header">
+                <div className="panel-header-titles">
+                  <h2>User Directory</h2>
+                  <p>Add staff accounts, set temp passcodes, and monitor reset states.</p>
                 </div>
-                <button className="btn btn-primary btn-sm" onClick={() => setActiveTab('dealer-billing')}>Purchase Seats</button>
+                <button className="btn btn-primary btn-sm" onClick={() => setUserModalOpen(true)}>+ Add User</button>
               </div>
-            </div>
 
-            <div className="table-container">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>License Key (Seat ID)</th>
-                    <th>Assigned Staff User</th>
-                    <th>License Status</th>
-                    <th>Next Invoice Date</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {licensesList.map(l => {
-                    const nextBillingDate = new Date();
-                    nextBillingDate.setDate(new Date().getDate() + 14); // Mock billing date
-                    
-                    return (
-                      <tr key={l.id}>
-                        <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>{l.id}</td>
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Email Address</th>
+                      <th>Role</th>
+                      <th>Temporary Password</th>
+                      <th>Forced Reset Flag</th>
+                      <th>Created At</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usersList.map(u => (
+                      <tr key={u.id}>
+                        <td style={{ fontWeight: 600 }}>{u.email}</td>
                         <td>
-                          <select 
-                            value={l.user_id || 'unassigned'}
-                            onChange={(e) => handleAssignLicense(l.id, e.target.value)}
-                            style={{ background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-dim)', color: 'white', padding: '6px 12px', borderRadius: '6px', fontSize: '13px' }}
-                          >
-                            <option value="unassigned">Unassigned (Vacant Seat)</option>
-                            {usersList.map(u => (
-                              <option key={u.id} value={u.id}>{u.email} ({u.role})</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <span className={`badge ${l.user_id ? 'badge-success' : 'badge-warning'}`}>
-                            {l.user_id ? 'Active Seat' : 'Unassigned'}
+                          <span className={`badge ${u.role === 'dealer_admin' ? 'badge-info' : 'badge-warning'}`}>
+                            {u.role === 'dealer_admin' ? 'Admin' : 'Extension User'}
                           </span>
                         </td>
-                        <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                          {activeDealer.status === 'trial' ? 'Trial Period' : 'End of Month'}
+                        <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: u.temp_password ? '#f6b23a' : 'var(--text-muted)' }}>
+                          {u.temp_password || 'Cleared (Active)'}
                         </td>
                         <td>
-                          {l.user_id && (
-                            <button className="btn btn-secondary btn-sm" onClick={() => handleAssignLicense(l.id, 'unassigned')}>
-                              Remove User
+                          <span className={`badge ${u.password_reset_required ? 'badge-danger' : 'badge-success'}`}>
+                            {u.password_reset_required ? 'Reset Required' : 'OK'}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          {new Date(u.created_at).toLocaleDateString()}
+                        </td>
+                        <td style={{ display: 'flex', gap: '8px' }}>
+                          <button className="btn btn-secondary btn-sm" onClick={() => handleResetUserPassword(u.id, u.email)}>
+                            Reset Passcode
+                          </button>
+                          {u.email !== user.email && (
+                            <button className="btn btn-danger btn-sm" onClick={() => handleDeleteUser(u.id, u.email)}>
+                              Deactivate
                             </button>
                           )}
                         </td>
                       </tr>
-                    );
-                  })}
-                  {licensesList.length === 0 && (
-                    <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No seats purchased. Go to billing to add seats.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ============================================== */}
-        {/* VIEW: USERS */}
-        {/* ============================================== */}
-        {activeTab === 'dealer-users' && (
-          <div className="content-panel">
-            <div className="panel-header">
-              <div className="panel-header-titles">
-                <h2>User Directory</h2>
-                <p>Add staff accounts, set temp passcodes, and monitor reset states.</p>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <button className="btn btn-primary btn-sm" onClick={() => setUserModalOpen(true)}>+ Add User</button>
             </div>
 
-            <div className="table-container">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Email Address</th>
-                    <th>Role</th>
-                    <th>Temporary Password</th>
-                    <th>Forced Reset Flag</th>
-                    <th>Created At</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usersList.map(u => (
-                    <tr key={u.id}>
-                      <td style={{ fontWeight: 600 }}>{u.email}</td>
-                      <td>
-                        <span className={`badge ${u.role === 'dealer_admin' ? 'badge-info' : 'badge-warning'}`}>
-                          {u.role === 'dealer_admin' ? 'Admin' : 'Extension User'}
-                        </span>
-                      </td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: u.temp_password ? '#f6b23a' : 'var(--text-muted)' }}>
-                        {u.temp_password || 'Cleared (Active)'}
-                      </td>
-                      <td>
-                        <span className={`badge ${u.password_reset_required ? 'badge-danger' : 'badge-success'}`}>
-                          {u.password_reset_required ? 'Reset Required' : 'OK'}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        {new Date(u.created_at).toLocaleDateString()}
-                      </td>
-                      <td style={{ display: 'flex', gap: '8px' }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => handleResetUserPassword(u.id, u.email)}>
-                          Reset Passcode
-                        </button>
-                        {u.email !== user.email && (
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDeleteUser(u.id, u.email)}>
-                            Deactivate
-                          </button>
-                        )}
-                      </td>
+            {/* Panel 2: Active Seats & Licenses */}
+            <div className="content-panel">
+              <div className="panel-header">
+                <div className="panel-header-titles">
+                  <h2>Active Seats & Licenses</h2>
+                  <p>Map license seat keys to authorized users. Unassigned licenses do not allow extension login.</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                    Seats Used: <strong className="text-orange">{countAssignedSeats} / {activeDealer.license_count}</strong>
+                  </div>
+                  <button className="btn btn-primary btn-sm" onClick={() => setActiveTab('dealer-billing')}>Purchase Seats</button>
+                </div>
+              </div>
+
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>License Key (Seat ID)</th>
+                      <th>Assigned Staff User</th>
+                      <th>License Status</th>
+                      <th>Next Invoice Date</th>
+                      <th>Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ============================================== */}
-        {/* VIEW: SESSIONS */}
-        {/* ============================================== */}
-        {activeTab === 'dealer-sessions' && (
-          <div className="content-panel">
-            <div className="panel-header">
-              <div className="panel-header-titles">
-                <h2>Active Device Sessions</h2>
-                <p>One active hardware session is permitted per seat license. Terminate sessions below to resolve conflict alerts.</p>
+                  </thead>
+                  <tbody>
+                    {licensesList.map(l => {
+                      const nextBillingDate = new Date();
+                      nextBillingDate.setDate(new Date().getDate() + 14); // Mock billing date
+                      
+                      return (
+                        <tr key={l.id}>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>{l.id}</td>
+                          <td>
+                            <select 
+                              value={l.user_id || 'unassigned'}
+                              onChange={(e) => handleAssignLicense(l.id, e.target.value)}
+                              style={{ background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-dim)', color: 'white', padding: '6px 12px', borderRadius: '6px', fontSize: '13px' }}
+                            >
+                              <option value="unassigned">Unassigned (Vacant Seat)</option>
+                              {usersList.map(u => (
+                                <option key={u.id} value={u.id}>{u.email} ({u.role})</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <span className={`badge ${l.user_id ? 'badge-success' : 'badge-warning'}`}>
+                              {l.user_id ? 'Active Seat' : 'Unassigned'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                            {activeDealer.status === 'trial' ? 'Trial Period' : 'End of Month'}
+                          </td>
+                          <td>
+                            {l.user_id && (
+                              <button className="btn btn-secondary btn-sm" onClick={() => handleAssignLicense(l.id, 'unassigned')}>
+                                Remove User
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {licensesList.length === 0 && (
+                      <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No seats purchased. Go to billing to add seats.</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            <div className="table-container">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>License ID</th>
-                    <th>User Account</th>
-                    <th>Device Fingerprint</th>
-                    <th>Last Active Sync</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sessionsList.map(s => {
-                    const lic = licensesList.find(l => l.id === s.license_id);
-                    const usr = usersList.find(u => u.id === lic?.user_id);
-                    
-                    return (
-                      <tr key={s.id}>
-                        <td style={{ fontFamily: 'var(--font-mono)' }}>{s.license_id}</td>
-                        <td style={{ fontWeight: 600 }}>{usr ? usr.email : 'Unassigned License'}</td>
-                        <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>{s.device_fingerprint}</td>
-                        <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                          {new Date(s.last_seen).toLocaleString()}
-                        </td>
-                        <td>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleKickSession(s.license_id, usr?.email || 'Unknown')}>
-                            Kick Session
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {sessionsList.length === 0 && (
-                    <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No active chrome extension sessions connected.</td></tr>
-                  )}
-                </tbody>
-              </table>
+            {/* Panel 3: Active Device Sessions */}
+            <div className="content-panel">
+              <div className="panel-header">
+                <div className="panel-header-titles">
+                  <h2>Active Device Sessions</h2>
+                  <p>One active hardware session is permitted per seat license. Terminate sessions below to resolve conflict alerts.</p>
+                </div>
+              </div>
+
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>License ID</th>
+                      <th>User Account</th>
+                      <th>Device Fingerprint</th>
+                      <th>Last Active Sync</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sessionsList.map(s => {
+                      const lic = licensesList.find(l => l.id === s.license_id);
+                      const usr = usersList.find(u => u.id === lic?.user_id);
+                      
+                      return (
+                        <tr key={s.id}>
+                          <td style={{ fontFamily: 'var(--font-mono)' }}>{s.license_id}</td>
+                          <td style={{ fontWeight: 600 }}>{usr ? usr.email : 'Unassigned License'}</td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>{s.device_fingerprint}</td>
+                          <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                            {new Date(s.last_seen).toLocaleString()}
+                          </td>
+                          <td>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleKickSession(s.license_id, usr?.email || 'Unknown')}>
+                              Kick Session
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {sessionsList.length === 0 && (
+                      <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No active chrome extension sessions connected.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
+
           </div>
         )}
 

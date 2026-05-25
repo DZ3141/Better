@@ -64,7 +64,7 @@ body {
   min-height: 100vh;
 }
 
-/* Sidebar Navigation */
+/* Sidebar Navigation — MPP Reference (260px full sidebar) */
 aside.sidebar {
   width: 260px;
   background-color: var(--bg-surface);
@@ -85,6 +85,11 @@ aside.sidebar {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.sidebar-header img {
+  height: 36px !important;
+  width: auto !important;
 }
 
 .logo-container {
@@ -876,4 +881,43 @@ table.data-table tbody tr:hover {
   white-space: pre-wrap;
   font-size: 12px;
   line-height: 1.4;
+}
+
+/* Premium styled input fields for entering margin percentages */
+.margin-input {
+  background-color: var(--bg-surface-elevated) !important;
+  border: 1px solid var(--border-dim) !important;
+  color: #ffffff !important;
+  border-radius: 6px !important;
+  outline: none !important;
+  transition: all 0.2s ease-in-out !important;
+  font-family: var(--font-mono) !important;
+}
+
+.margin-input:focus {
+  border-color: var(--color-orange-primary) !important;
+  box-shadow: 0 0 0 2px rgba(246, 178, 58, 0.15) !important;
+  background-color: var(--bg-surface) !important;
+}
+
+.margin-input::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 0.6 !important;
+}
+
+/* Apply JetBrains Mono monospaced font to all data elements */
+table.data-table,
+table.data-table th,
+table.data-table td,
+.stat-card-value,
+.margin-item span:last-child,
+.badge,
+input,
+select,
+textarea,
+.logs-text,
+.font-jetbrains-mono,
+pre,
+code {
+  font-family: var(--font-mono), monospace !important;
 }

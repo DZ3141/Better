@@ -10,6 +10,7 @@ export interface Dealer {
   status: string;
   trial_ends_at: string | null;
   expires_at: string | null;
+  pricing_version: 'stable' | 'beta';
   franchises: string[];
   created_at: string;
 }
@@ -114,9 +115,9 @@ export interface AppState {
 // --- SEED DATA STRUCTURE ---
 const SEED_DATA: AppState = {
   dealers: [
-    { id: "h1", name: "Hendrick Automotive Group", odoo_customer_id: "odoo_Hndrk9823", odoo_contract_id: "contract_1", monthly_price_per_seat: 149.00, license_count: 5, status: "trial", trial_ends_at: "2026-06-15T00:00:00Z", expires_at: null, franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], created_at: "2026-01-10T08:00:00Z" },
-    { id: "a1", name: "AutoNation Ford", odoo_customer_id: "odoo_AutoN4412", odoo_contract_id: "contract_2", monthly_price_per_seat: 129.00, license_count: 12, status: "active", trial_ends_at: null, expires_at: null, franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], created_at: "2026-02-15T09:30:00Z" },
-    { id: "l1", name: "Lithia Chrysler Jeep", odoo_customer_id: "odoo_Lithia8823", odoo_contract_id: "contract_3", monthly_price_per_seat: 149.00, license_count: 3, status: "active", trial_ends_at: null, expires_at: null, franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], created_at: "2026-03-01T10:00:00Z" }
+    { id: "h1", name: "Hendrick Automotive Group", odoo_customer_id: "odoo_Hndrk9823", odoo_contract_id: "contract_1", monthly_price_per_seat: 149.00, license_count: 5, status: "trial", trial_ends_at: "2026-06-15T00:00:00Z", expires_at: null, pricing_version: "stable", franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], created_at: "2026-01-10T08:00:00Z" },
+    { id: "a1", name: "AutoNation Ford", odoo_customer_id: "odoo_AutoN4412", odoo_contract_id: "contract_2", monthly_price_per_seat: 129.00, license_count: 12, status: "active", trial_ends_at: null, expires_at: null, pricing_version: "stable", franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], created_at: "2026-02-15T09:30:00Z" },
+    { id: "l1", name: "Lithia Chrysler Jeep", odoo_customer_id: "odoo_Lithia8823", odoo_contract_id: "contract_3", monthly_price_per_seat: 149.00, license_count: 3, status: "active", trial_ends_at: null, expires_at: null, pricing_version: "stable", franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], created_at: "2026-03-01T10:00:00Z" }
   ],
   users: [
     { id: "u1", dealer_account_id: "h1", email: "admin@hendrickauto.com", role: "dealer_admin", temp_password: null, password_reset_required: false, created_at: "2026-01-10T08:05:00Z" },
@@ -279,6 +280,7 @@ export const dataService = {
       status,
       trial_ends_at: status === 'trial' ? trialEnds.toISOString() : null,
       expires_at: null,
+      pricing_version: 'stable' as const,
       franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"],
       created_at: new Date().toISOString()
     };
@@ -828,6 +830,27 @@ export const dataService = {
     return dealerId ? state.invoices.filter(i => i.dealer_account_id === dealerId) : state.invoices;
   },
 
+  async markInvoicePaid(invoiceId: string): Promise<boolean> {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase
+        .from('invoices')
+        .update({ status: 'Paid' })
+        .eq('id', invoiceId);
+      if (error) {
+        console.error("Error marking invoice paid:", error);
+        return false;
+      }
+    }
+    const state = getLocalStorageState();
+    const index = state.invoices.findIndex(i => i.id === invoiceId);
+    if (index !== -1) {
+      state.invoices[index].status = 'Paid';
+      saveLocalStorageState(state);
+      return true;
+    }
+    return false;
+  },
+
   // --- EMAIL SIMULATION LOGS ---
   async getSuperadminSettings() {
     return getLocalStorageState().superadmin_settings;
@@ -884,14 +907,25 @@ export const dataService = {
         .select('*')
         .eq('id', 'default')
         .maybeSingle();
-      if (data) return data;
+      if (data) {
+        return {
+          ...data,
+          optimize_code_beta: data.optimize_code_beta || data.optimize_code,
+          maintain_profit_code_beta: data.maintain_profit_code_beta || data.maintain_profit_code
+        };
+      }
     }
     // Mock local settings
     if (typeof window !== 'undefined') {
       const localAlgo = localStorage.getItem('mpp_algorithm_settings');
       if (localAlgo) {
         try {
-          return JSON.parse(localAlgo);
+          const parsed = JSON.parse(localAlgo);
+          return {
+            ...parsed,
+            optimize_code_beta: parsed.optimize_code_beta || parsed.optimize_code,
+            maintain_profit_code_beta: parsed.maintain_profit_code_beta || parsed.maintain_profit_code
+          };
         } catch (e) {}
       }
     }
@@ -931,6 +965,41 @@ export const dataService = {
     }
   }
   return Number(Math.min(listPrice, Math.max(cost * 0.5, bestPrice)).toFixed(2));
+}`,
+      optimize_code_beta: `function optimize(listPrice, cost, reimbursementRate, minProfit) {
+  let low = cost * 0.5;
+  let high = listPrice;
+  let bestPrice = listPrice;
+  for (let i = 0; i < 30; i++) {
+    const mid = (low + high) / 2;
+    const reimbursement = mid * reimbursementRate;
+    const netProfit = mid + reimbursement - cost;
+    if (netProfit >= minProfit) {
+      bestPrice = mid;
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+  return Number(Math.min(listPrice, Math.max(cost * 0.5, bestPrice)).toFixed(2));
+}`,
+      maintain_profit_code_beta: `function maintainProfit(listPrice, cost, reimbursementRate) {
+  const minProfit = listPrice - cost;
+  let low = cost * 0.5;
+  let high = listPrice;
+  let bestPrice = listPrice;
+  for (let i = 0; i < 30; i++) {
+    const mid = (low + high) / 2;
+    const reimbursement = mid * reimbursementRate;
+    const netProfit = mid + reimbursement - cost;
+    if (netProfit >= minProfit) {
+      bestPrice = mid;
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+  return Number(Math.min(listPrice, Math.max(cost * 0.5, bestPrice)).toFixed(2));
 }`
     };
     if (typeof window !== 'undefined') {
@@ -939,7 +1008,7 @@ export const dataService = {
     return defaultVal;
   },
 
-  async saveAlgorithmSettings(optimizeCode: string, maintainProfitCode: string) {
+  async saveAlgorithmSettings(optimizeCode: string, maintainProfitCode: string, optimizeCodeBeta?: string, maintainProfitCodeBeta?: string) {
     if (isSupabaseConfigured && supabase) {
       const { error } = await supabase
         .from('algorithm_settings')
@@ -947,6 +1016,8 @@ export const dataService = {
           id: 'default',
           optimize_code: optimizeCode,
           maintain_profit_code: maintainProfitCode,
+          optimize_code_beta: optimizeCodeBeta || optimizeCode,
+          maintain_profit_code_beta: maintainProfitCodeBeta || maintainProfitCode,
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
       if (error) {
@@ -959,7 +1030,9 @@ export const dataService = {
       localStorage.setItem('mpp_algorithm_settings', JSON.stringify({
         id: 'default',
         optimize_code: optimizeCode,
-        maintain_profit_code: maintainProfitCode
+        maintain_profit_code: maintainProfitCode,
+        optimize_code_beta: optimizeCodeBeta || optimizeCode,
+        maintain_profit_code_beta: maintainProfitCodeBeta || maintainProfitCode
       }));
     }
     return true;

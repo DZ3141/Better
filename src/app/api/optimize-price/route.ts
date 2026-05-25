@@ -185,20 +185,27 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (algoSettings) {
-        if (optimizationType === 'maintain_profit' && algoSettings.maintain_profit_code) {
-          const fn = new Function('listPrice', 'cost', 'reimbursementRate', `
-            const algo = ${algoSettings.maintain_profit_code};
-            return algo(listPrice, cost, reimbursementRate);
-          `);
-          optimizedPrice = fn(nListPrice, nCost, nReimbRate);
-          algorithmUsed = 'dynamic-maintain-profit';
-        } else if (optimizationType === 'optimize' && algoSettings.optimize_code) {
-          const fn = new Function('listPrice', 'cost', 'reimbursementRate', 'minProfit', `
-            const algo = ${algoSettings.optimize_code};
-            return algo(listPrice, cost, reimbursementRate, minProfit);
-          `);
-          optimizedPrice = fn(nListPrice, nCost, nReimbRate, minProfit);
-          algorithmUsed = 'dynamic-optimize';
+        const isBeta = dealer?.pricing_version === 'beta';
+        if (optimizationType === 'maintain_profit') {
+          const code = isBeta ? (algoSettings.maintain_profit_code_beta || algoSettings.maintain_profit_code) : algoSettings.maintain_profit_code;
+          if (code) {
+            const fn = new Function('listPrice', 'cost', 'reimbursementRate', `
+              const algo = ${code};
+              return algo(listPrice, cost, reimbursementRate);
+            `);
+            optimizedPrice = fn(nListPrice, nCost, nReimbRate);
+            algorithmUsed = isBeta ? 'dynamic-maintain-profit-beta' : 'dynamic-maintain-profit';
+          }
+        } else if (optimizationType === 'optimize') {
+          const code = isBeta ? (algoSettings.optimize_code_beta || algoSettings.optimize_code) : algoSettings.optimize_code;
+          if (code) {
+            const fn = new Function('listPrice', 'cost', 'reimbursementRate', 'minProfit', `
+              const algo = ${code};
+              return algo(listPrice, cost, reimbursementRate, minProfit);
+            `);
+            optimizedPrice = fn(nListPrice, nCost, nReimbRate, minProfit);
+            algorithmUsed = isBeta ? 'dynamic-optimize-beta' : 'dynamic-optimize';
+          }
         }
       }
     } catch (algoErr) {

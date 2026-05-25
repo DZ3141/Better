@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS dealer_accounts (
   status TEXT CHECK (status IN ('trial', 'active', 'expired', 'suspended')) DEFAULT 'trial',
   trial_ends_at TIMESTAMPTZ,
   expires_at TIMESTAMPTZ,
+  pricing_version TEXT NOT NULL DEFAULT 'stable' CHECK (pricing_version IN ('stable', 'beta')),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -111,13 +112,50 @@ CREATE TABLE IF NOT EXISTS algorithm_settings (
   id TEXT PRIMARY KEY DEFAULT 'default',
   optimize_code TEXT NOT NULL,
   maintain_profit_code TEXT NOT NULL,
+  optimize_code_beta TEXT,
+  maintain_profit_code_beta TEXT,
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Seed default pricing algorithms
-INSERT INTO algorithm_settings (id, optimize_code, maintain_profit_code)
+INSERT INTO algorithm_settings (id, optimize_code, maintain_profit_code, optimize_code_beta, maintain_profit_code_beta)
 VALUES (
   'default',
+  'function optimize(listPrice, cost, reimbursementRate, minProfit) {
+  let low = cost * 0.5;
+  let high = listPrice;
+  let bestPrice = listPrice;
+  for (let i = 0; i < 30; i++) {
+    const mid = (low + high) / 2;
+    const reimbursement = mid * reimbursementRate;
+    const netProfit = mid + reimbursement - cost;
+    if (netProfit >= minProfit) {
+      bestPrice = mid;
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+  return Number(Math.min(listPrice, Math.max(cost * 0.5, bestPrice)).toFixed(2));
+}',
+  'function maintainProfit(listPrice, cost, reimbursementRate) {
+  const minProfit = listPrice - cost;
+  let low = cost * 0.5;
+  let high = listPrice;
+  let bestPrice = listPrice;
+  for (let i = 0; i < 30; i++) {
+    const mid = (low + high) / 2;
+    const reimbursement = mid * reimbursementRate;
+    const netProfit = mid + reimbursement - cost;
+    if (netProfit >= minProfit) {
+      bestPrice = mid;
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+  return Number(Math.min(listPrice, Math.max(cost * 0.5, bestPrice)).toFixed(2));
+}',
   'function optimize(listPrice, cost, reimbursementRate, minProfit) {
   let low = cost * 0.5;
   let high = listPrice;

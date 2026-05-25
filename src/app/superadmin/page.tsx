@@ -17,6 +17,7 @@ export default function SuperadminPage() {
   const [licensesList, setLicensesList] = useState<any[]>([]);
   const [approvalsList, setApprovalsList] = useState<any[]>([]);
   const [invoicesList, setInvoicesList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   // Modals & Forms
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState('success');
@@ -46,6 +47,8 @@ export default function SuperadminPage() {
   // Algorithm code editor states
   const [optimizeCode, setOptimizeCode] = useState('');
   const [maintainProfitCode, setMaintainProfitCode] = useState('');
+  const [optimizeCodeBeta, setOptimizeCodeBeta] = useState('');
+  const [maintainProfitCodeBeta, setMaintainProfitCodeBeta] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -61,7 +64,7 @@ export default function SuperadminPage() {
           return;
         }
         setUser(u);
-        loadSuperData();
+        loadSuperData().finally(() => setIsLoading(false));
       } catch (e) {
         router.push('/login');
       }
@@ -125,6 +128,8 @@ export default function SuperadminPage() {
     const algo = await dataService.getAlgorithmSettings();
     setOptimizeCode(algo.optimize_code);
     setMaintainProfitCode(algo.maintain_profit_code);
+    setOptimizeCodeBeta(algo.optimize_code_beta);
+    setMaintainProfitCodeBeta(algo.maintain_profit_code_beta);
   };
 
   const handleSaveAlgorithms = async () => {
@@ -135,12 +140,18 @@ export default function SuperadminPage() {
       new Function('listPrice', 'cost', 'reimbursementRate', `
         const testFn = ${maintainProfitCode};
       `);
+      new Function('listPrice', 'cost', 'reimbursementRate', 'minProfit', `
+        const testFn = ${optimizeCodeBeta};
+      `);
+      new Function('listPrice', 'cost', 'reimbursementRate', `
+        const testFn = ${maintainProfitCodeBeta};
+      `);
     } catch (err: any) {
       showToast(`Syntax Error in JavaScript code: ${err.message}`, 'error');
       return;
     }
 
-    const success = await dataService.saveAlgorithmSettings(optimizeCode, maintainProfitCode);
+    const success = await dataService.saveAlgorithmSettings(optimizeCode, maintainProfitCode, optimizeCodeBeta, maintainProfitCodeBeta);
     if (success) {
       showToast('Pricing algorithms updated successfully!');
       loadSuperData();
@@ -261,6 +272,16 @@ export default function SuperadminPage() {
     }
   };
 
+  const handleMarkInvoicePaid = async (invoiceId: string) => {
+    const success = await dataService.markInvoicePaid(invoiceId);
+    if (success) {
+      showToast('Invoice marked as Paid successfully.');
+      loadSuperData();
+    } else {
+      showToast('Failed to mark invoice as Paid.', 'error');
+    }
+  };
+
   // Domain Approvals Queue Controls
   const handleApproveSignup = async (appId: string, email: string) => {
     const tempPassword = "Welcome#" + Math.floor(1000 + Math.random() * 9000);
@@ -314,8 +335,31 @@ export default function SuperadminPage() {
     router.push('/login');
   };
 
-  if (!user) {
-    return <div style={{ color: 'white', padding: '40px', fontFamily: 'sans-serif' }}>Loading superadmin session...</div>;
+  if (!user || isLoading) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        backgroundColor: '#0b0b0a', 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center',
+        gap: '24px',
+        fontFamily: 'Outfit, sans-serif'
+      }}>
+        <div style={{
+          width: '48px',
+          height: '48px',
+          border: '3px solid rgba(246, 178, 58, 0.15)',
+          borderTop: '3px solid #f6b23a',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite'
+        }} />
+        <div style={{ color: '#f6b23a', fontSize: '15px', fontWeight: 600, letterSpacing: '0.05em' }}>Loading Superadmin</div>
+        <div style={{ color: '#666', fontSize: '12px' }}>Initializing control panel…</div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
   }
 
   return (
@@ -330,9 +374,12 @@ export default function SuperadminPage() {
 
       {/* Sidebar Navigation */}
       <aside className="sidebar">
-        <div className="sidebar-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', padding: '20px' }}>
-          <img src="/extension/my-part-pros-lg.svg" alt="My Part Pros" style={{ height: '40px', width: 'auto' }} />
-          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-orange-primary)', letterSpacing: '0.1em', marginTop: '4px' }}>Price Optimizer</div>
+        <div className="sidebar-header">
+          <div className="logo-container">M</div>
+          <div>
+            <div className="brand-name">My Part Pros</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-orange-primary)', letterSpacing: '0.1em', marginTop: '2px' }}>Superadmin</div>
+          </div>
         </div>
 
         <ul className="sidebar-menu">
@@ -340,19 +387,19 @@ export default function SuperadminPage() {
           <li>
             <a className={`menu-item ${activeTab === 'super-overview' ? 'active' : ''}`} onClick={() => setActiveTab('super-overview')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-              Global Overview
+              <span>Global Overview</span>
             </a>
           </li>
           <li>
             <a className={`menu-item ${activeTab === 'super-accounts' ? 'active' : ''}`} onClick={() => setActiveTab('super-accounts')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-              Dealer Accounts
+              <span>Dealer Accounts</span>
             </a>
           </li>
           <li>
             <a className={`menu-item ${activeTab === 'super-approvals' ? 'active' : ''}`} onClick={() => setActiveTab('super-approvals')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-              Domain Approvals
+              <span>Domain Approvals</span>
               {approvalsList.length > 0 && (
                 <span className="badge badge-warning" style={{ marginLeft: 'auto', padding: '2px 6px', fontSize: '9px', background: 'var(--color-orange-primary)', color: 'black' }}>
                   {approvalsList.length}
@@ -363,19 +410,25 @@ export default function SuperadminPage() {
           <li>
             <a className={`menu-item ${activeTab === 'super-resets' ? 'active' : ''}`} onClick={() => setActiveTab('super-resets')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-              Password Resets
+              <span>Password Resets</span>
+            </a>
+          </li>
+          <li>
+            <a className={`menu-item ${activeTab === 'super-invoices' ? 'active' : ''}`} onClick={() => setActiveTab('super-invoices')}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+              <span>Invoices & Billing</span>
             </a>
           </li>
           <li>
             <a className={`menu-item ${activeTab === 'super-algorithm' ? 'active' : ''}`} onClick={() => setActiveTab('super-algorithm')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-              System Algorithm
+              <span>System Algorithm</span>
             </a>
           </li>
 
           <div style={{ marginTop: 'auto', padding: '10px 14px' }}>
             <button onClick={handleLogout} className="btn btn-secondary btn-sm" style={{ width: '100%', gap: '8px' }}>
-              🚪 Log Out
+              🚪 <span>Log Out</span>
             </button>
           </div>
         </ul>
@@ -732,6 +785,67 @@ export default function SuperadminPage() {
         )}
 
         {/* ============================================== */}
+        {/* VIEW: INVOICES */}
+        {/* ============================================== */}
+        {activeTab === 'super-invoices' && (
+          <div className="content-panel">
+            <div className="panel-header">
+              <div className="panel-header-titles">
+                <h2>Dealer Subscription Invoices</h2>
+                <p>Monitor status and manually mark Odoo invoices as Paid.</p>
+              </div>
+            </div>
+
+            <div className="table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Invoice ID</th>
+                    <th>Dealer Name</th>
+                    <th>Billing Date</th>
+                    <th>Seats Billing</th>
+                    <th>Amount Due</th>
+                    <th>Payment Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoicesList.map(inv => {
+                    const dl = dealers.find(d => d.id === inv.dealer_account_id);
+                    return (
+                      <tr key={inv.id}>
+                        <td style={{ fontFamily: 'var(--font-mono)' }}>{inv.id}</td>
+                        <td style={{ fontWeight: 600 }}>{dl ? dl.name : 'Unknown Dealer'}</td>
+                        <td>{inv.date}</td>
+                        <td>{inv.seat_count} seats</td>
+                        <td style={{ fontWeight: 600 }}>${Number(inv.amount).toFixed(2)}</td>
+                        <td>
+                          <span className={`badge ${inv.status === 'Paid' ? 'badge-success' : 'badge-warning'}`}>
+                            {inv.status}
+                          </span>
+                        </td>
+                        <td>
+                          {inv.status !== 'Paid' ? (
+                            <button className="btn btn-success btn-sm" onClick={() => handleMarkInvoicePaid(inv.id)}>
+                              ✓ Mark Paid
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Paid</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {invoicesList.length === 0 && (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No invoices found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================== */}
         {/* VIEW: ALGORITHM */}
         {/* ============================================== */}
         {activeTab === 'super-algorithm' && (
@@ -740,65 +854,117 @@ export default function SuperadminPage() {
               <div className="panel-header" style={{ borderBottom: '1px solid var(--border-dim)', paddingBottom: '12px' }}>
                 <div className="panel-header-titles">
                   <h2>Pricing Algorithm Control Center</h2>
-                  <p>Paste and update the JavaScript function logic executed server-side when the Chrome extension sends pricing quote requests.</p>
+                  <p>Paste and update the JavaScript function logic executed server-side. Deals toggled to "Beta" run the Beta versions.</p>
                 </div>
                 <button className="btn btn-primary" onClick={handleSaveAlgorithms}>
                   Save Algorithms
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '24px' }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-orange-primary)', marginBottom: '8px', display: 'block' }}>
-                    1. Optimize Algorithm Function Code
-                  </label>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: '1.4' }}>
-                    This function handles the standard conquesting scan. It receives four parameters: `listPrice` (number), `cost` (number), `reimbursementRate` (number, e.g. 0.85), and `minProfit` (number, the minimum dollar profit floor). It must return a final selling price to offer the collision shop.
-                  </p>
-                  <textarea
-                    rows={12}
-                    value={optimizeCode}
-                    onChange={(e) => setOptimizeCode(e.target.value)}
-                    style={{
-                      width: '100%',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '13px',
-                      backgroundColor: 'var(--bg-surface-elevated)',
-                      border: '1px solid var(--border-dim)',
-                      color: 'white',
-                      padding: '16px',
-                      borderRadius: '8px',
-                      lineHeight: '1.5'
-                    }}
-                    placeholder="function optimize(...) { ... }"
-                  />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginTop: '24px' }}>
+                
+                {/* Column 1: Stable Engines */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'white', borderBottom: '1px solid var(--border-dim)', paddingBottom: '8px' }}>Stable Engines (Standard)</h3>
+                  
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-orange-primary)', marginBottom: '8px', display: 'block' }}>
+                      1. Stable Optimize Code
+                    </label>
+                    <textarea
+                      rows={12}
+                      value={optimizeCode}
+                      onChange={(e) => setOptimizeCode(e.target.value)}
+                      style={{
+                        width: '100%',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '13px',
+                        backgroundColor: 'var(--bg-surface-elevated)',
+                        border: '1px solid var(--border-dim)',
+                        color: 'white',
+                        padding: '16px',
+                        borderRadius: '8px',
+                        lineHeight: '1.5'
+                      }}
+                      placeholder="function optimize(...) { ... }"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-orange-primary)', marginBottom: '8px', display: 'block' }}>
+                      2. Stable Maintain Profit Code
+                    </label>
+                    <textarea
+                      rows={12}
+                      value={maintainProfitCode}
+                      onChange={(e) => setMaintainProfitCode(e.target.value)}
+                      style={{
+                        width: '100%',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '13px',
+                        backgroundColor: 'var(--bg-surface-elevated)',
+                        border: '1px solid var(--border-dim)',
+                        color: 'white',
+                        padding: '16px',
+                        borderRadius: '8px',
+                        lineHeight: '1.5'
+                      }}
+                      placeholder="function maintainProfit(...) { ... }"
+                    />
+                  </div>
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-orange-primary)', marginBottom: '8px', display: 'block' }}>
-                    2. Maintain Profit Algorithm Function Code
-                  </label>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: '1.4' }}>
-                    This function is executed when the user selects the "Maintain Profit" option. It receives three parameters: `listPrice` (number), `cost` (number), and `reimbursementRate` (number). It must return a final selling price to offer the shop while ensuring the dealer's standard net profit is fully preserved.
-                  </p>
-                  <textarea
-                    rows={12}
-                    value={maintainProfitCode}
-                    onChange={(e) => setMaintainProfitCode(e.target.value)}
-                    style={{
-                      width: '100%',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '13px',
-                      backgroundColor: 'var(--bg-surface-elevated)',
-                      border: '1px solid var(--border-dim)',
-                      color: 'white',
-                      padding: '16px',
-                      borderRadius: '8px',
-                      lineHeight: '1.5'
-                    }}
-                    placeholder="function maintainProfit(...) { ... }"
-                  />
+                {/* Column 2: Beta Engines */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-orange-primary)', borderBottom: '1px solid var(--border-dim)', paddingBottom: '8px' }}>Beta Engines (Experimental)</h3>
+                  
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-orange-primary)', marginBottom: '8px', display: 'block' }}>
+                      3. Beta Optimize Code
+                    </label>
+                    <textarea
+                      rows={12}
+                      value={optimizeCodeBeta}
+                      onChange={(e) => setOptimizeCodeBeta(e.target.value)}
+                      style={{
+                        width: '100%',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '13px',
+                        backgroundColor: 'var(--bg-surface-elevated)',
+                        border: '1px solid var(--border-dim)',
+                        color: 'white',
+                        padding: '16px',
+                        borderRadius: '8px',
+                        lineHeight: '1.5'
+                      }}
+                      placeholder="function optimize(...) { ... }"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-orange-primary)', marginBottom: '8px', display: 'block' }}>
+                      4. Beta Maintain Profit Code
+                    </label>
+                    <textarea
+                      rows={12}
+                      value={maintainProfitCodeBeta}
+                      onChange={(e) => setMaintainProfitCodeBeta(e.target.value)}
+                      style={{
+                        width: '100%',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '13px',
+                        backgroundColor: 'var(--bg-surface-elevated)',
+                        border: '1px solid var(--border-dim)',
+                        color: 'white',
+                        padding: '16px',
+                        borderRadius: '8px',
+                        lineHeight: '1.5'
+                      }}
+                      placeholder="function maintainProfit(...) { ... }"
+                    />
+                  </div>
                 </div>
+
               </div>
             </div>
           </div>
