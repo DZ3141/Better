@@ -1023,7 +1023,7 @@ export const dataService = {
   },
 
   async updateInvoiceStatus(invoiceId: string, status: string): Promise<boolean> {
-    if (isSupabaseConfigured && supabase) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(invoiceId)) {
       const { error } = await supabase
         .from('invoices')
         .update({ status: status })
