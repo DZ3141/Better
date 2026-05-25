@@ -1160,7 +1160,7 @@ export const dataService = {
     warehousePickers: number,
     drivers: number
   ): Promise<boolean> {
-    if (isSupabaseConfigured && supabase) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(id)) {
       const { error } = await supabase
         .from('pending_approvals')
         .update({ warehouse_pickers: warehousePickers, drivers: drivers })
@@ -1169,6 +1169,7 @@ export const dataService = {
         console.error("Error updating pending approval questions:", error);
         throw new Error(error.message || "Failed to update registration questionnaire.");
       }
+      return true;
     }
 
     const state = getLocalStorageState();
