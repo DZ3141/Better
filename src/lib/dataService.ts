@@ -799,15 +799,19 @@ export const dataService = {
   async importCustomerOverrides(
     dealerId: string,
     overrides: { shopName: string; customerNumber: string; minMargin: number }[]
-  ): Promise<boolean> {
+  ): Promise<{ success: boolean; error?: string }> {
     if (isSupabaseConfigured && supabase) {
       try {
         // Fetch all existing customer rules for this dealer
-        const { data: existingRules } = await supabase
+        const { data: existingRules, error: selectError } = await supabase
           .from('account_rules')
           .select('id, customer_number')
           .eq('dealer_account_id', dealerId)
           .not('customer_number', 'is', null);
+
+        if (selectError) {
+          return { success: false, error: selectError.message };
+        }
 
         const existingMap = new Map<string, string>();
         if (existingRules) {
@@ -847,15 +851,17 @@ export const dataService = {
         }
 
         if (inserts.length > 0) {
-          const { error } = await supabase.from('account_rules').insert(inserts);
-          if (error) throw error;
+          const { error: insertError } = await supabase.from('account_rules').insert(inserts);
+          if (insertError) {
+            return { success: false, error: `Insert failed: ${insertError.message}` };
+          }
         }
 
         if (updates.length > 0) {
           const chunkSize = 10;
           for (let i = 0; i < updates.length; i += chunkSize) {
             const chunk = updates.slice(i, i + chunkSize);
-            await Promise.all(
+            const results = await Promise.all(
               chunk.map(upd =>
                 supabase!
                   .from('account_rules')
@@ -867,11 +873,16 @@ export const dataService = {
                   .eq('id', upd.id)
               )
             );
+            for (const r of results) {
+              if (r.error) {
+                return { success: false, error: `Update failed: ${r.error.message}` };
+              }
+            }
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("Error importing customer overrides from Supabase:", e);
-        return false;
+        return { success: false, error: e?.message || String(e) };
       }
     }
 
@@ -898,10 +909,10 @@ export const dataService = {
         }
       });
       saveLocalStorageState(state);
-      return true;
-    } catch (e) {
+      return { success: true };
+    } catch (e: any) {
       console.error("Error importing customer overrides locally:", e);
-      return false;
+      return { success: false, error: e?.message || String(e) };
     }
   },
 

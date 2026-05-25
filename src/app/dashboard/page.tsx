@@ -418,12 +418,12 @@ export default function DashboardPage() {
           return;
         }
 
-        const success = await dataService.importCustomerOverrides(activeDealer.id, parsedRecords);
-        if (success) {
+        const res = await dataService.importCustomerOverrides(activeDealer.id, parsedRecords);
+        if (res.success) {
           showToast(`Successfully imported ${parsedRecords.length} customer overrides!`);
           await refreshDealerData(activeDealer.id);
         } else {
-          showToast('Failed to save imported customer overrides.', 'error');
+          showToast(`Failed to save overrides: ${res.error || 'Unknown error'}`, 'error');
         }
       } catch (err) {
         console.error(err);
