@@ -1047,7 +1047,14 @@ export const dataService = {
   async getLicenseChanges(): Promise<any[]> {
     if (typeof window !== 'undefined') {
       const logs = localStorage.getItem('mpp_license_changes');
-      return logs ? JSON.parse(logs) : [];
+      if (logs) {
+        try {
+          const parsed = JSON.parse(logs);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) {
+          console.error("Failed to parse license changes:", e);
+        }
+      }
     }
     return [];
   },
@@ -1055,7 +1062,15 @@ export const dataService = {
   async logLicenseChange(dealerName: string, details: string): Promise<void> {
     if (typeof window !== 'undefined') {
       const logs = localStorage.getItem('mpp_license_changes');
-      const list = logs ? JSON.parse(logs) : [];
+      let list = [];
+      if (logs) {
+        try {
+          const parsed = JSON.parse(logs);
+          if (Array.isArray(parsed)) list = parsed;
+        } catch (e) {
+          console.error("Failed to parse existing license changes:", e);
+        }
+      }
       list.unshift({
         id: "chg-" + Math.random().toString(36).substring(4),
         dealer_name: dealerName,

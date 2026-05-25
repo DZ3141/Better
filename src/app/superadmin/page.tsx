@@ -74,6 +74,18 @@ export default function SuperadminPage() {
     }
   }, [router]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === 'mpp_license_changes' || e.key === 'mpp_dashboard_state') {
+          loadSuperData();
+        }
+      };
+      window.addEventListener('storage', handleStorageChange);
+      return () => window.removeEventListener('storage', handleStorageChange);
+    }
+  }, []);
+
   const loadSuperData = async () => {
     let dList = await dataService.getDealers();
     
