@@ -1,5 +1,10 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 
+const isMockDealerId = (id: string | null): boolean => {
+  if (!id) return false;
+  return !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+};
+
 export interface Dealer {
   id: string;
   name: string;
@@ -440,7 +445,7 @@ export const dataService = {
 
   // --- USER SERVICES ---
   async getUsers(dealerId: string | null): Promise<any[]> {
-    if (isSupabaseConfigured && supabase) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
       const query = supabase.from('users').select('*');
       if (dealerId) query.eq('dealer_account_id', dealerId);
       const { data } = await query;
@@ -524,7 +529,7 @@ export const dataService = {
 
   // --- LICENSE & SEATS SERVICES ---
   async getLicenses(dealerId: string): Promise<any[]> {
-    if (isSupabaseConfigured && supabase) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
       const { data } = await supabase.from('licenses').select('*').eq('dealer_account_id', dealerId);
       if (data) return data;
     }
@@ -571,7 +576,7 @@ export const dataService = {
 
   // --- MARKUP RULES ---
   async getMarkupSettings(dealerId: string) {
-    if (isSupabaseConfigured && supabase) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
       const { data } = await supabase
         .from('account_rules')
         .select('*')
@@ -662,7 +667,7 @@ export const dataService = {
   },
 
   async getCustomers(dealerId: string): Promise<any[]> {
-    if (isSupabaseConfigured && supabase) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
       // 1. Get all customer overrides
       const { data: rules } = await supabase
         .from('account_rules')
@@ -741,7 +746,7 @@ export const dataService = {
   },
 
   async updateCustomerMarkup(dealerId: string, accountNum: string, minMarkup: number | null): Promise<boolean> {
-    if (isSupabaseConfigured && supabase) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
       // Find if custom override already exists
       const { data: existingRule } = await supabase
         .from('account_rules')
@@ -800,8 +805,7 @@ export const dataService = {
     dealerId: string,
     overrides: { shopName: string; customerNumber: string; minMargin: number }[]
   ): Promise<{ success: boolean; error?: string }> {
-    const isMockId = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dealerId);
-    if (isSupabaseConfigured && supabase && !isMockId) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
       try {
         // Fetch all existing customer rules for this dealer
         const { data: existingRules, error: selectError } = await supabase
@@ -919,7 +923,7 @@ export const dataService = {
 
   // --- LOGS & RESULTS ---
   async getPriceResults(dealerId: string): Promise<any[]> {
-    if (isSupabaseConfigured && supabase) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
       const { data } = await supabase
         .from('price_results')
         .select('*')
@@ -1008,7 +1012,7 @@ export const dataService = {
 
   // --- INVOICES ---
   async getInvoices(dealerId: string | null): Promise<any[]> {
-    if (isSupabaseConfigured && supabase) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
       const query = supabase.from('invoices').select('*').order('date', { ascending: false });
       if (dealerId) query.eq('dealer_account_id', dealerId);
       const { data } = await query;
