@@ -1016,7 +1016,7 @@ export const dataService = {
       const query = supabase.from('invoices').select('*').order('date', { ascending: false });
       if (dealerId) query.eq('dealer_account_id', dealerId);
       const { data } = await query;
-      if (data) return data;
+      if (data && data.length > 0) return data;
     }
     const state = getLocalStorageState();
     return dealerId ? state.invoices.filter(i => i.dealer_account_id === dealerId) : state.invoices;
@@ -1041,6 +1041,29 @@ export const dataService = {
       return true;
     }
     return false;
+  },
+
+  // --- LICENSE CHANGE AUDIT LOGS ---
+  async getLicenseChanges(): Promise<any[]> {
+    if (typeof window !== 'undefined') {
+      const logs = localStorage.getItem('mpp_license_changes');
+      return logs ? JSON.parse(logs) : [];
+    }
+    return [];
+  },
+
+  async logLicenseChange(dealerName: string, details: string): Promise<void> {
+    if (typeof window !== 'undefined') {
+      const logs = localStorage.getItem('mpp_license_changes');
+      const list = logs ? JSON.parse(logs) : [];
+      list.unshift({
+        id: "chg-" + Math.random().toString(36).substring(4),
+        dealer_name: dealerName,
+        details: details,
+        created_at: new Date().toISOString()
+      });
+      localStorage.setItem('mpp_license_changes', JSON.stringify(list));
+    }
   },
 
   // --- EMAIL SIMULATION LOGS ---

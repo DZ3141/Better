@@ -35,6 +35,7 @@ export default function SuperadminPage() {
   const [selectedDealerId, setSelectedDealerId] = useState('');
   const [trialEndDate, setTrialEndDate] = useState('');
   const [hardExpiryDate, setHardExpiryDate] = useState('');
+  const [licenseChanges, setLicenseChanges] = useState<any[]>([]);
 
   // Password reset search
   const [searchUserEmail, setSearchUserEmail] = useState('');
@@ -134,6 +135,9 @@ export default function SuperadminPage() {
     setMaintainProfitCodeBeta(algo.maintain_profit_code_beta);
     setMaxReimbCode(algo.max_reimb_code);
     setMaxReimbCodeBeta(algo.max_reimb_code_beta);
+
+    const chgLogs = await dataService.getLicenseChanges();
+    setLicenseChanges(chgLogs);
   };
 
   const handleSaveAlgorithms = async () => {
@@ -218,6 +222,8 @@ export default function SuperadminPage() {
     const welcomeBody = `Hi,\n\nYour dealer account "${newDealerName}" has been provisioned.\n\nYour administrator login credentials are:\nEmail: ${defaultAdminEmail}\nTemporary Password: ${tempPassword}\n\nOn your first login you will be required to change this password.`;
     await dataService.sendEmail(defaultAdminEmail, welcomeSubject, welcomeBody);
 
+    await dataService.logLicenseChange(newDealerName, `Account provisioned manually. Set ${newDealerSeats} seats at $${newDealerRate}/seat/mo.`);
+
     setDealerModalOpen(false);
     setNewDealerName('');
     showToast(`Account provisioned. Admin passcode email dispatched to ${defaultAdminEmail}`);
@@ -255,6 +261,22 @@ export default function SuperadminPage() {
     updates.expires_at = hardExpiryDate ? new Date(hardExpiryDate).toISOString() : null;
 
     await dataService.updateDealer(selectedDealerId, updates);
+    
+    if (dealer) {
+      if (dealer.status === 'trial') {
+        const oldTrialStr = dealer.trial_ends_at ? new Date(dealer.trial_ends_at).toLocaleDateString() : 'N/A';
+        const newTrialStr = updates.trial_ends_at ? new Date(updates.trial_ends_at).toLocaleDateString() : 'Cleared';
+        if (oldTrialStr !== newTrialStr) {
+          await dataService.logLicenseChange(dealer.name, `Trial expiration updated from ${oldTrialStr} to ${newTrialStr}.`);
+        }
+      }
+      const oldExpireStr = dealer.expires_at ? new Date(dealer.expires_at).toLocaleDateString() : 'N/A';
+      const newExpireStr = updates.expires_at ? new Date(updates.expires_at).toLocaleDateString() : 'Cleared';
+      if (oldExpireStr !== newExpireStr) {
+        await dataService.logLicenseChange(dealer.name, `Hard expiration override updated from ${oldExpireStr} to ${newExpireStr}.`);
+      }
+    }
+
     setTrialModalOpen(false);
     setTrialEndDate('');
     setHardExpiryDate('');
@@ -274,7 +296,12 @@ export default function SuperadminPage() {
   const handleUpdateDealerSeats = async (dealerId: string, value: string) => {
     const seats = Number(value);
     if (isNaN(seats) || seats < 1) return;
+    const dealer = dealers.find(d => d.id === dealerId);
+    const oldSeats = dealer ? dealer.license_count : 0;
     await dataService.updateDealer(dealerId, { license_count: seats });
+    if (dealer) {
+      await dataService.logLicenseChange(dealer.name, `Seats allocated adjusted from ${oldSeats} to ${seats}.`);
+    }
     showToast('Seats allocations modified.');
     loadSuperData();
   };
@@ -282,7 +309,12 @@ export default function SuperadminPage() {
   const handleUpdateDealerRate = async (dealerId: string, value: string) => {
     const rate = Number(value);
     if (isNaN(rate) || rate < 0) return;
+    const dealer = dealers.find(d => d.id === dealerId);
+    const oldRate = dealer ? dealer.monthly_price_per_seat : 0;
     await dataService.updateDealer(dealerId, { monthly_price_per_seat: rate });
+    if (dealer) {
+      await dataService.logLicenseChange(dealer.name, `Price per seat adjusted from $${oldRate.toFixed(2)} to $${rate.toFixed(2)}.`);
+    }
     showToast('Pricing rate updated.');
     loadSuperData();
   };
@@ -309,10 +341,24 @@ export default function SuperadminPage() {
     }
   };
 
+  const handleClearLicenseChanges = () => {
+    if (confirm("Are you sure you want to clear the license changes history log?")) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('mpp_license_changes');
+      }
+      setLicenseChanges([]);
+      showToast('License change logs cleared.');
+    }
+  };
+
   // Domain Approvals Queue Controls
   const handleApproveSignup = async (appId: string, email: string) => {
     const tempPassword = "Welcome#" + Math.floor(1000 + Math.random() * 9000);
+    const app = approvalsList.find(a => a.id === appId);
     await dataService.approvePendingApproval(appId, tempPassword);
+    if (app) {
+      await dataService.logLicenseChange(app.dealer_name, `Registration approved. Provisioned 5 seats at $149.00/seat/mo.`);
+    }
     
     // Send welcome email
     const subject = "Welcome to My Part Pros OEC Price Optimizer - Your Login Credentials";
@@ -880,6 +926,54 @@ export default function SuperadminPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* License Change Log Panel */}
+            <div className="content-panel" style={{ marginTop: '32px' }}>
+              <div className="panel-header" style={{ borderBottom: '1px solid var(--border-dim)', paddingBottom: '12px' }}>
+                <div className="panel-header-titles">
+                  <h2>License & Seat Changes Log</h2>
+                  <p>Audit trail of changes to seats, rates, and trial dates for CRM billing updates.</p>
+                </div>
+                {licenseChanges.length > 0 && (
+                  <button 
+                    className="btn btn-secondary btn-sm" 
+                    onClick={handleClearLicenseChanges}
+                  >
+                    Clear History
+                  </button>
+                )}
+              </div>
+
+              <div className="table-container" style={{ marginTop: '16px', maxHeight: '350px', overflowY: 'auto' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '180px' }}>Date</th>
+                      <th style={{ width: '220px' }}>Dealership</th>
+                      <th>Details of Change</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {licenseChanges.map(log => (
+                      <tr key={log.id}>
+                        <td style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                          {new Date(log.created_at).toLocaleString()}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{log.dealer_name}</td>
+                        <td>{log.details}</td>
+                      </tr>
+                    ))}
+                    {licenseChanges.length === 0 && (
+                      <tr>
+                        <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>
+                          No license change records found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

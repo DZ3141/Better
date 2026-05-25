@@ -565,7 +565,7 @@ export default function DashboardPage() {
           <li>
             <a className={`menu-item ${activeTab === 'dealer-billing' ? 'active' : ''}`} onClick={() => setActiveTab('dealer-billing')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-              <span>Odoo & Billing</span>
+              <span>Billing & Contract</span>
             </a>
           </li>
           
@@ -1331,19 +1331,19 @@ export default function DashboardPage() {
         {/* ============================================== */}
         {activeTab === 'dealer-billing' && (
           <div className="grid-2col">
-            {/* Odoo subscription management */}
+            {/* Subscription management */}
             <div className="content-panel">
               <div className="panel-header">
                 <div className="panel-header-titles">
-                  <h2>Odoo Subscription billing</h2>
-                  <p>Invoices are managed via manual ACH invoicing matching your Odoo CRM profile contracts.</p>
+                  <h2>Subscription Billing</h2>
+                  <p>Invoices are managed via manual ACH invoicing matching your contract.</p>
                 </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div style={{ background: 'var(--bg-surface-elevated)', padding: '20px', borderRadius: '10px', border: '1px solid var(--border-dim)' }}>
                   <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Billing Contract Status</div>
-                  <div style={{ fontSize: '24px', fontWeight: 700, color: 'white', marginTop: '4px' }}>Odoo ACH Plan</div>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: 'white', marginTop: '4px' }}>Optimizer ACH Plan</div>
 
                   <div className="margin-item" style={{ marginTop: '16px' }}>
                     <span>Monthly Rate Per License Seat</span>
@@ -1384,7 +1384,7 @@ export default function DashboardPage() {
               <div className="panel-header">
                 <div className="panel-header-titles">
                   <h2>Invoice Log History</h2>
-                  <p>Invoices processed via Odoo.</p>
+                  <p>Invoices processed.</p>
                 </div>
               </div>
 
