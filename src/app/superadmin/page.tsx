@@ -689,6 +689,10 @@ export default function SuperadminPage() {
                   <tr>
                     <th>Email Address</th>
                     <th>Requested Dealer Name</th>
+                    <th>Phone</th>
+                    <th>Location</th>
+                    <th>Pickers</th>
+                    <th>Drivers</th>
                     <th>Registration Date</th>
                     <th>Action Controls</th>
                   </tr>
@@ -698,6 +702,14 @@ export default function SuperadminPage() {
                     <tr key={app.id}>
                       <td style={{ fontWeight: 600 }}>{app.email}</td>
                       <td>{app.dealer_name}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)' }}>{app.phone || '-'}</td>
+                      <td>{app.city && app.state ? `${app.city}, ${app.state}` : app.city || app.state || '-'}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
+                        {app.warehouse_pickers !== null && app.warehouse_pickers !== undefined ? app.warehouse_pickers : '-'}
+                      </td>
+                      <td style={{ fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
+                        {app.drivers !== null && app.drivers !== undefined ? app.drivers : '-'}
+                      </td>
                       <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                         {new Date(app.created_at).toLocaleString()}
                       </td>
@@ -708,7 +720,7 @@ export default function SuperadminPage() {
                     </tr>
                   ))}
                   {approvalsList.length === 0 && (
-                    <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No signups are currently pending approval.</td></tr>
+                    <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No signups are currently pending approval.</td></tr>
                   )}
                 </tbody>
               </table>

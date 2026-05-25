@@ -92,7 +92,12 @@ CREATE TABLE IF NOT EXISTS pending_approvals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
   dealer_name TEXT NOT NULL,
+  phone TEXT DEFAULT '',
+  city TEXT DEFAULT '',
+  state TEXT DEFAULT '',
   role TEXT CHECK (role IN ('dealer_admin', 'user')) DEFAULT 'dealer_admin',
+  warehouse_pickers INTEGER DEFAULT NULL,
+  drivers INTEGER DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

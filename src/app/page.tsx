@@ -25,8 +25,18 @@ export default function HomePage() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [regEmail, setRegEmail] = useState('');
   const [regDealerName, setRegDealerName] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regCity, setRegCity] = useState('');
+  const [regState, setRegState] = useState('');
   const [regSuccess, setRegSuccess] = useState(false);
   const [regError, setRegError] = useState('');
+
+  // Follow-up questionnaire step (shown after initial registration submit)
+  const [showFollowUp, setShowFollowUp] = useState(false);
+  const [followUpPickers, setFollowUpPickers] = useState('');
+  const [followUpDrivers, setFollowUpDrivers] = useState('');
+  const [followUpSubmitted, setFollowUpSubmitted] = useState(false);
+  const [pendingApprovalId, setPendingApprovalId] = useState('');
 
   useEffect(() => {
     // Check if already logged in
@@ -80,7 +90,7 @@ export default function HomePage() {
     setRegError('');
     setRegSuccess(false);
 
-    if (!regEmail || !regDealerName) {
+    if (!regEmail || !regDealerName || !regPhone || !regCity || !regState) {
       setRegError('Please fill in all fields.');
       return;
     }
@@ -94,16 +104,55 @@ export default function HomePage() {
 
     setLoading(true);
     try {
-      const success = await dataService.createPendingApproval(regEmail, regDealerName);
-      if (success) {
-        setRegSuccess(true);
-        setRegEmail('');
-        setRegDealerName('');
+      const approvalId = await dataService.createPendingApproval(regEmail, regDealerName, 'dealer_admin', {
+        phone: regPhone,
+        city: regCity,
+        state: regState
+      });
+      if (approvalId) {
+        setPendingApprovalId(approvalId);
+        setShowFollowUp(true);
       } else {
         setRegError('Registration request failed. Please try again.');
       }
     } catch (err) {
       setRegError('An error occurred during registration.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFollowUpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegError('');
+
+    if (!followUpPickers || !followUpDrivers) {
+      setRegError('Please fill in all fields.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const success = await dataService.updatePendingApprovalQuestions(
+        pendingApprovalId,
+        Number(followUpPickers),
+        Number(followUpDrivers)
+      );
+      if (success) {
+        setRegSuccess(true);
+        setRegEmail('');
+        setRegDealerName('');
+        setRegPhone('');
+        setRegCity('');
+        setRegState('');
+        setFollowUpPickers('');
+        setFollowUpDrivers('');
+        setShowFollowUp(false);
+      } else {
+        setRegError('Failed to save questionnaire. Please try again.');
+      }
+    } catch (err) {
+      setRegError('An error occurred during submission.');
     } finally {
       setLoading(false);
     }
@@ -452,6 +501,75 @@ export default function HomePage() {
                     {loading ? 'Saving...' : 'Update Password'}
                   </button>
                 </form>
+              ) : showFollowUp ? (
+                /* FOLLOW-UP QUESTIONNAIRE FORM */
+                <form onSubmit={handleFollowUpSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {regError && (
+                    <div style={{
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      color: '#ef4444',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      textAlign: 'center'
+                    }}>
+                      {regError}
+                    </div>
+                  )}
+
+                  <div style={{
+                    backgroundColor: 'rgba(246, 178, 58, 0.05)',
+                    border: '1px solid rgba(246, 178, 58, 0.15)',
+                    color: '#f6b23a',
+                    padding: '16px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    lineHeight: '1.4',
+                    marginBottom: '8px'
+                  }}>
+                    <strong>Step 2: Tell us more about your team</strong><br />
+                    Please help us customize your trial by answering a few quick questions.
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label htmlFor="pickers" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Warehouse Pickers Count</label>
+                    <input 
+                      type="number" 
+                      id="pickers" 
+                      required 
+                      min="0"
+                      value={followUpPickers}
+                      onChange={(e) => setFollowUpPickers(e.target.value)}
+                      placeholder="e.g. 5"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label htmlFor="drivers" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Drivers Count</label>
+                    <input 
+                      type="number" 
+                      id="drivers" 
+                      required 
+                      min="0"
+                      value={followUpDrivers}
+                      onChange={(e) => setFollowUpDrivers(e.target.value)}
+                      placeholder="e.g. 3"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary" 
+                    disabled={loading}
+                    style={{ width: '100%', padding: '12px', marginTop: '8px' }}
+                  >
+                    {loading ? 'Submitting...' : 'Complete Trial Request'}
+                  </button>
+                </form>
               ) : isRegistering ? (
                 /* REGISTRATION FORM */
                 <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -510,9 +628,51 @@ export default function HomePage() {
                           required 
                           value={regDealerName}
                           onChange={(e) => setRegDealerName(e.target.value)}
-                          placeholder="Hendrick Chevrolet"
+                          placeholder="123 Chevrolet"
                           style={{ width: '100%' }}
                         />
+                      </div>
+
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label htmlFor="reg-phone" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>Phone Number</label>
+                        <input 
+                          type="tel" 
+                          id="reg-phone" 
+                          required 
+                          value={regPhone}
+                          onChange={(e) => setRegPhone(e.target.value)}
+                          placeholder="e.g. (555) 019-2834"
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '12px', margin: 0 }}>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label htmlFor="reg-city" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>City</label>
+                          <input 
+                            type="text" 
+                            id="reg-city" 
+                            required 
+                            value={regCity}
+                            onChange={(e) => setRegCity(e.target.value)}
+                            placeholder="e.g. Charlotte"
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label htmlFor="reg-state" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#9ca3af' }}>State</label>
+                          <input 
+                            type="text" 
+                            id="reg-state" 
+                            required 
+                            maxLength={2}
+                            value={regState}
+                            onChange={(e) => setRegState(e.target.value.toUpperCase())}
+                            placeholder="NC"
+                            style={{ width: '100%' }}
+                          />
+                        </div>
                       </div>
 
                       <button 

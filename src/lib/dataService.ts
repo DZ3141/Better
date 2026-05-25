@@ -71,7 +71,12 @@ export interface PendingApproval {
   id: string;
   email: string;
   dealer_name: string;
+  phone: string;
+  city: string;
+  state: string;
   role: string;
+  warehouse_pickers: number | null;
+  drivers: number | null;
   created_at: string;
 }
 
@@ -184,7 +189,7 @@ const SEED_DATA: AppState = {
     { id: "res-5", dealer_account_id: "h1", user_id: "u2", part_number: "55102938", customer_number: "BSH-55234", customer_name: "Gerber Collision & Glass", original_price: 188.00, optimized_price: 175.50, reimb_amount: 149.18, cost: 140.00, margin_achieved: 25.4, optimization_type: "maintain_profit", created_at: "2026-05-21T16:45:00-05:00" }
   ],
   pending_approvals: [
-    { id: "app-1", email: "johndoe@gmail.com", dealer_name: "John's Chevrolet Group", role: "dealer_admin", created_at: "2026-05-23T11:00:00Z" }
+    { id: "app-1", email: "johndoe@gmail.com", dealer_name: "John's Chevrolet Group", phone: "555-123-4567", city: "Charlotte", state: "NC", role: "dealer_admin", warehouse_pickers: null, drivers: null, created_at: "2026-05-23T11:00:00Z" }
   ],
   invoices: [
     { id: "inv_1", dealer_account_id: "h1", date: "2026-05-31", seat_count: 5, amount: 745.00, status: "Paid" },
@@ -877,27 +882,69 @@ export const dataService = {
     }
   },
 
-  async createPendingApproval(email: string, dealerName: string, role: string = 'dealer_admin'): Promise<boolean> {
+  async createPendingApproval(
+    email: string, 
+    dealerName: string, 
+    role: string = 'dealer_admin',
+    extra: { phone?: string; city?: string; state?: string; warehouse_pickers?: number | null; drivers?: number | null } = {}
+  ): Promise<string | null> {
     const newApproval = {
       id: typeof crypto !== 'undefined' ? crypto.randomUUID() : "app-" + Math.random().toString(36).substring(4),
       email,
       dealer_name: dealerName,
+      phone: extra.phone || '',
+      city: extra.city || '',
+      state: extra.state || '',
       role,
+      warehouse_pickers: extra.warehouse_pickers ?? null,
+      drivers: extra.drivers ?? null,
       created_at: new Date().toISOString()
     };
 
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from('pending_approvals').insert(newApproval);
+      const { data, error } = await supabase
+        .from('pending_approvals')
+        .insert(newApproval)
+        .select('id')
+        .single();
       if (error) {
         console.error("Error creating pending approval:", error);
-        return false;
+        return null;
       }
+      return data ? data.id : newApproval.id;
     }
 
     const state = getLocalStorageState();
     state.pending_approvals.push(newApproval);
     saveLocalStorageState(state);
-    return true;
+    return newApproval.id;
+  },
+
+  async updatePendingApprovalQuestions(
+    id: string,
+    warehousePickers: number,
+    drivers: number
+  ): Promise<boolean> {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase
+        .from('pending_approvals')
+        .update({ warehouse_pickers: warehousePickers, drivers: drivers })
+        .eq('id', id);
+      if (error) {
+        console.error("Error updating pending approval questions:", error);
+        return false;
+      }
+    }
+
+    const state = getLocalStorageState();
+    const index = state.pending_approvals.findIndex(x => x.id === id);
+    if (index !== -1) {
+      state.pending_approvals[index].warehouse_pickers = warehousePickers;
+      state.pending_approvals[index].drivers = drivers;
+      saveLocalStorageState(state);
+      return true;
+    }
+    return false;
   },
 
   async getAlgorithmSettings() {

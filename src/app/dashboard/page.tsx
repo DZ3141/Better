@@ -91,7 +91,7 @@ export default function DashboardPage() {
       setActiveDealer(dealer);
 
       if (dealer) {
-        refreshDealerData(dealer.id);
+        await refreshDealerData(dealer.id);
       }
     } catch (err) {
       console.error("Error loading dashboard data:", err);
@@ -99,48 +99,40 @@ export default function DashboardPage() {
   };
 
   const refreshDealerData = async (dealerId: string) => {
-    // Refresh activeDealer details
-    let allDealers = await dataService.getDealers();
-    if (!allDealers || allDealers.length === 0) {
+    // Fetch all dealer-related data in parallel to maximize load speed and avoid flickering
+    const [allDealers, users, licenses, sessions, customers, markupSettings, invoices, logs] = await Promise.all([
+      dataService.getDealers(),
+      dataService.getUsers(dealerId),
+      dataService.getLicenses(dealerId),
+      dataService.getSessions(dealerId),
+      dataService.getCustomers(dealerId),
+      dataService.getMarkupSettings(dealerId),
+      dataService.getInvoices(dealerId),
+      dataService.getPriceResults(dealerId)
+    ]);
+
+    let resolvedDealers = allDealers;
+    if (!resolvedDealers || resolvedDealers.length === 0) {
       const mockState = typeof window !== 'undefined' ? localStorage.getItem('mpp_dashboard_state') : null;
       if (mockState) {
         try {
-          allDealers = JSON.parse(mockState).dealers;
+          resolvedDealers = JSON.parse(mockState).dealers;
         } catch(e) {}
       }
     }
-    const updatedDealer = allDealers ? allDealers.find(d => d.id === dealerId) : null;
+
+    const updatedDealer = resolvedDealers ? resolvedDealers.find(d => d.id === dealerId) : null;
     if (updatedDealer) {
       setActiveDealer(updatedDealer);
     }
 
-    // Users
-    const users = await dataService.getUsers(dealerId);
     setUsersList(users);
-
-    // Licenses
-    const licenses = await dataService.getLicenses(dealerId);
     setLicensesList(licenses);
-
-    // Sessions
-    const sessions = await dataService.getSessions(dealerId);
     setSessionsList(sessions);
-
-    // Customers
-    const customers = await dataService.getCustomers(dealerId);
     setCustomersList(customers);
-
-    // Markup Rules
-    const markupSettings = await dataService.getMarkupSettings(dealerId);
     setMasterMarkup(markupSettings.master);
     setFranchiseMarkups(markupSettings.franchise || {});
-
-    // Invoices
-    const invoices = await dataService.getInvoices(dealerId);
     setInvoicesList(invoices);
-
-    // Logs
-    const logs = await dataService.getPriceResults(dealerId);
     setLogsList(logs);
   };
 
