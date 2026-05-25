@@ -255,20 +255,25 @@ export default function SuperadminPage() {
     if (!dealer) return;
 
     const updates: any = {};
-    if (dealer.status === 'trial') {
-      updates.trial_ends_at = trialEndDate ? new Date(trialEndDate).toISOString() : null;
-    }
+    const newTrialEnds = trialEndDate ? new Date(trialEndDate).toISOString() : null;
+    updates.trial_ends_at = newTrialEnds;
     updates.expires_at = hardExpiryDate ? new Date(hardExpiryDate).toISOString() : null;
+
+    // If setting a trial expiration date, status automatically becomes 'trial'.
+    // If clearing the trial expiration date and it was 'trial', it becomes 'active'.
+    if (newTrialEnds) {
+      updates.status = 'trial';
+    } else if (dealer.status === 'trial') {
+      updates.status = 'active';
+    }
 
     await dataService.updateDealer(selectedDealerId, updates);
     
     if (dealer) {
-      if (dealer.status === 'trial') {
-        const oldTrialStr = dealer.trial_ends_at ? new Date(dealer.trial_ends_at).toLocaleDateString() : 'N/A';
-        const newTrialStr = updates.trial_ends_at ? new Date(updates.trial_ends_at).toLocaleDateString() : 'Cleared';
-        if (oldTrialStr !== newTrialStr) {
-          await dataService.logLicenseChange(dealer.name, `Trial expiration updated from ${oldTrialStr} to ${newTrialStr}.`);
-        }
+      const oldTrialStr = dealer.trial_ends_at ? new Date(dealer.trial_ends_at).toLocaleDateString() : 'N/A';
+      const newTrialStr = updates.trial_ends_at ? new Date(updates.trial_ends_at).toLocaleDateString() : 'Cleared';
+      if (oldTrialStr !== newTrialStr) {
+        await dataService.logLicenseChange(dealer.name, `Trial expiration updated from ${oldTrialStr} to ${newTrialStr}.`);
       }
       const oldExpireStr = dealer.expires_at ? new Date(dealer.expires_at).toLocaleDateString() : 'N/A';
       const newExpireStr = updates.expires_at ? new Date(updates.expires_at).toLocaleDateString() : 'Cleared';
