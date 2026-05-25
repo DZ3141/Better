@@ -331,13 +331,13 @@ export default function SuperadminPage() {
     }
   };
 
-  const handleMarkInvoicePaid = async (invoiceId: string) => {
-    const success = await dataService.markInvoicePaid(invoiceId);
+  const handleUpdateInvoiceStatus = async (invoiceId: string, status: string) => {
+    const success = await dataService.updateInvoiceStatus(invoiceId, status);
     if (success) {
-      showToast('Invoice marked as Paid successfully.');
+      showToast(`Invoice status updated to ${status}.`);
       loadSuperData();
     } else {
-      showToast('Failed to mark invoice as Paid.', 'error');
+      showToast('Failed to update invoice status.', 'error');
     }
   };
 
@@ -881,7 +881,7 @@ export default function SuperadminPage() {
               </div>
             </div>
 
-            <div className="table-container">
+             <div className="table-container">
               <table className="data-table">
                 <thead>
                   <tr>
@@ -891,7 +891,6 @@ export default function SuperadminPage() {
                     <th>Seats Billing</th>
                     <th>Amount Due</th>
                     <th>Payment Status</th>
-                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -905,24 +904,33 @@ export default function SuperadminPage() {
                         <td>{inv.seat_count} seats</td>
                         <td style={{ fontWeight: 600 }}>${Number(inv.amount).toFixed(2)}</td>
                         <td>
-                          <span className={`badge ${inv.status === 'Paid' ? 'badge-success' : 'badge-warning'}`}>
-                            {inv.status}
-                          </span>
-                        </td>
-                        <td>
-                          {inv.status !== 'Paid' ? (
-                            <button className="btn btn-success btn-sm" onClick={() => handleMarkInvoicePaid(inv.id)}>
-                              ✓ Mark Paid
-                            </button>
-                          ) : (
-                            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Paid</span>
-                          )}
+                          <select 
+                            value={inv.status} 
+                            onChange={(e) => handleUpdateInvoiceStatus(inv.id, e.target.value)}
+                            className="margin-input"
+                            style={{ 
+                              padding: '6px 12px', 
+                              fontSize: '13px', 
+                              borderRadius: '6px', 
+                              color: inv.status === 'Paid' ? '#10b981' : inv.status === 'Overdue' ? '#ef4444' : '#f6b23a',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              width: '120px',
+                              textAlign: 'center',
+                              border: '1px solid var(--border-dim)',
+                              backgroundColor: 'var(--bg-surface)'
+                            }}
+                          >
+                            <option value="Unpaid" style={{ color: '#f6b23a', backgroundColor: 'var(--bg-surface-elevated)' }}>Unpaid</option>
+                            <option value="Paid" style={{ color: '#10b981', backgroundColor: 'var(--bg-surface-elevated)' }}>Paid</option>
+                            <option value="Overdue" style={{ color: '#ef4444', backgroundColor: 'var(--bg-surface-elevated)' }}>Overdue</option>
+                          </select>
                         </td>
                       </tr>
                     );
                   })}
                   {invoicesList.length === 0 && (
-                    <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No invoices found.</td></tr>
+                    <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No invoices found.</td></tr>
                   )}
                 </tbody>
               </table>

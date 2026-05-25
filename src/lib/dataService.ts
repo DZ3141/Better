@@ -1022,21 +1022,21 @@ export const dataService = {
     return dealerId ? state.invoices.filter(i => i.dealer_account_id === dealerId) : state.invoices;
   },
 
-  async markInvoicePaid(invoiceId: string): Promise<boolean> {
+  async updateInvoiceStatus(invoiceId: string, status: string): Promise<boolean> {
     if (isSupabaseConfigured && supabase) {
       const { error } = await supabase
         .from('invoices')
-        .update({ status: 'Paid' })
+        .update({ status: status })
         .eq('id', invoiceId);
       if (error) {
-        console.error("Error marking invoice paid:", error);
+        console.error("Error updating invoice status:", error);
         return false;
       }
     }
     const state = getLocalStorageState();
     const index = state.invoices.findIndex(i => i.id === invoiceId);
     if (index !== -1) {
-      state.invoices[index].status = 'Paid';
+      state.invoices[index].status = status;
       saveLocalStorageState(state);
       return true;
     }

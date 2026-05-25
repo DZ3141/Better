@@ -1406,7 +1406,11 @@ export default function DashboardPage() {
                         <td>{i.date}</td>
                         <td>{i.seat_count} seats</td>
                         <td style={{ fontWeight: 600 }}>${Number(i.amount).toFixed(2)}</td>
-                        <td><span className="badge badge-success">{i.status}</span></td>
+                        <td>
+                          <span className={`badge ${i.status === 'Paid' ? 'badge-success' : i.status === 'Overdue' ? 'badge-danger' : 'badge-warning'}`}>
+                            {i.status}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
