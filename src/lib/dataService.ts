@@ -800,7 +800,8 @@ export const dataService = {
     dealerId: string,
     overrides: { shopName: string; customerNumber: string; minMargin: number }[]
   ): Promise<{ success: boolean; error?: string }> {
-    if (isSupabaseConfigured && supabase) {
+    const isMockId = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dealerId);
+    if (isSupabaseConfigured && supabase && !isMockId) {
       try {
         // Fetch all existing customer rules for this dealer
         const { data: existingRules, error: selectError } = await supabase
