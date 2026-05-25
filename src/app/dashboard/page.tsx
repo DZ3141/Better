@@ -447,10 +447,20 @@ export default function DashboardPage() {
 
   const calculateDaysLeft = (endsAtStr: string | null) => {
     if (!endsAtStr) return 0;
-    const endsAt = new Date(endsAtStr);
+    
+    // Parse target date part (YYYY-MM-DD)
+    const datePart = endsAtStr.split('T')[0];
+    const [year, month, day] = datePart.split('-').map(Number);
+    
+    // Create Date objects representing midnight of both dates in local time
+    const expiryDate = new Date(year, month - 1, day);
+    
     const now = new Date();
-    const diffTime = endsAt.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const diffTime = expiryDate.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
     return diffDays > 0 ? diffDays : 0;
   };
 
