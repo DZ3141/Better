@@ -555,7 +555,7 @@ table.data-table tbody tr:hover {
 
 .btn-success {
   background-color: var(--color-green-primary);
-  color: white;
+  color: #000000;
 }
 
 .btn-success:hover {
@@ -892,6 +892,26 @@ table.data-table tbody tr:hover {
   outline: none !important;
   transition: all 0.2s ease-in-out !important;
   font-family: var(--font-mono) !important;
+}
+
+.margin-input[type="number"] {
+  padding-right: 24px !important;
+}
+
+/* Custom webkit spin buttons styling for margin inputs to match the site's premium theme */
+.margin-input::-webkit-inner-spin-button,
+.margin-input::-webkit-outer-spin-button {
+  -webkit-appearance: inner-spin-button !important;
+  opacity: 1 !important;
+  display: block !important;
+  cursor: pointer;
+  filter: invert(0.8) sepia(1) saturate(5) hue-rotate(15deg);
+  transition: opacity 0.2s ease-in-out;
+}
+
+.margin-input::-webkit-inner-spin-button:hover,
+.margin-input::-webkit-outer-spin-button:hover {
+  opacity: 0.8 !important;
 }
 
 .margin-input:focus {

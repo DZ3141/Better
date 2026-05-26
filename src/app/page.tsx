@@ -900,8 +900,8 @@ export default function HomePage() {
         color: '#9ca3af'
       }}>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '24px', marginBottom: '16px' }}>
-          <a href="#" style={{ color: '#9ca3af', textDecoration: 'none' }}>Privacy Policy</a>
-          <a href="#" style={{ color: '#9ca3af', textDecoration: 'none' }}>Terms of Service</a>
+          <Link href="/privacy" style={{ color: '#9ca3af', textDecoration: 'none', transition: 'color 0.2s' }}>Privacy Policy</Link>
+          <Link href="/terms" style={{ color: '#9ca3af', textDecoration: 'none', transition: 'color 0.2s' }}>Terms of Service</Link>
         </div>
         <p style={{ margin: 0 }}>&copy; {new Date().getFullYear()} My Part Pros. All rights reserved. Better OEC is a registered utility of My Part Pros.</p>
       </footer>

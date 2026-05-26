@@ -929,7 +929,7 @@ export default function DashboardPage() {
                     <span style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-muted)' }}>%</span>
                   </div>
                 </div>
-                <button className="btn btn-success" onClick={handleSaveDefaultMarkup} style={{ width: '100%' }}>
+                <button className="btn btn-success" onClick={handleSaveDefaultMarkup} style={{ width: '100%', color: '#000000' }}>
                   Save Master Fallback
                 </button>
               </div>
