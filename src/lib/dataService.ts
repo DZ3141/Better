@@ -25,6 +25,7 @@ export interface User {
   id: string;
   dealer_account_id: string | null;
   email: string;
+  name?: string;
   role: string;
   temp_password: string | null;
   password_reset_required: boolean;
@@ -132,14 +133,14 @@ const SEED_DATA: AppState = {
     { id: "l1", name: "Lithia Chrysler Jeep", odoo_customer_id: "odoo_Lithia8823", odoo_contract_id: "contract_3", monthly_price_per_seat: 149.00, license_count: 3, status: "active", trial_ends_at: null, expires_at: null, pricing_version: "stable", franchises: ["GM", "Ford", "Kia", "Toyota", "Honda", "Chrysler", "Nissan", "Hyundai"], max_reimb_mode: "highest_price" as const, created_at: "2026-03-01T10:00:00Z" }
   ],
   users: [
-    { id: "u1", dealer_account_id: "h1", email: "admin@hendrickauto.com", role: "dealer_admin", temp_password: null, password_reset_required: false, created_at: "2026-01-10T08:05:00Z" },
-    { id: "u2", dealer_account_id: "h1", email: "parts1@hendrickauto.com", role: "user", temp_password: null, password_reset_required: false, created_at: "2026-01-11T09:00:00Z" },
-    { id: "u3", dealer_account_id: "h1", email: "parts2@hendrickauto.com", role: "user", temp_password: "Welcome#hndrk2", password_reset_required: true, created_at: "2026-01-11T09:15:00Z" },
-    { id: "u4", dealer_account_id: "a1", email: "manager@autonation.com", role: "dealer_admin", temp_password: null, password_reset_required: false, created_at: "2026-02-15T09:35:00Z" },
-    { id: "u5", dealer_account_id: "a1", email: "counter1@autonation.com", role: "user", temp_password: null, password_reset_required: false, created_at: "2026-02-16T10:00:00Z" },
-    { id: "u6", dealer_account_id: "a1", email: "counter2@autonation.com", role: "user", temp_password: null, password_reset_required: false, created_at: "2026-02-16T10:30:00Z" },
-    { id: "u7", dealer_account_id: "l1", email: "parts_lead@lithia.com", role: "dealer_admin", temp_password: null, password_reset_required: false, created_at: "2026-03-01T10:05:00Z" },
-    { id: "u-super", dealer_account_id: null, email: "david@mypartpros.com", role: "superadmin", temp_password: null, password_reset_required: false, created_at: "2026-01-01T00:00:00Z" }
+    { id: "u1", dealer_account_id: "h1", email: "admin@hendrickauto.com", name: "David Miller", role: "dealer_admin", temp_password: null, password_reset_required: false, created_at: "2026-01-10T08:05:00Z" },
+    { id: "u2", dealer_account_id: "h1", email: "parts1@hendrickauto.com", name: "Alex Johnson", role: "user", temp_password: null, password_reset_required: false, created_at: "2026-01-11T09:00:00Z" },
+    { id: "u3", dealer_account_id: "h1", email: "parts2@hendrickauto.com", name: "Sarah Connor", role: "user", temp_password: "Welcome#hndrk2", password_reset_required: true, created_at: "2026-01-11T09:15:00Z" },
+    { id: "u4", dealer_account_id: "a1", email: "manager@autonation.com", name: "Michael Counter", role: "dealer_admin", temp_password: null, password_reset_required: false, created_at: "2026-02-15T09:35:00Z" },
+    { id: "u5", dealer_account_id: "a1", email: "counter1@autonation.com", name: "Robert Counter", role: "user", temp_password: null, password_reset_required: false, created_at: "2026-02-16T10:00:00Z" },
+    { id: "u6", dealer_account_id: "a1", email: "counter2@autonation.com", name: "Jane Counter", role: "user", temp_password: null, password_reset_required: false, created_at: "2026-02-16T10:30:00Z" },
+    { id: "u7", dealer_account_id: "l1", email: "parts_lead@lithia.com", name: "Lithia Manager", role: "dealer_admin", temp_password: null, password_reset_required: false, created_at: "2026-03-01T10:05:00Z" },
+    { id: "u-super", dealer_account_id: null, email: "david@mypartpros.com", name: "Shane Superadmin", role: "superadmin", temp_password: null, password_reset_required: false, created_at: "2026-01-01T00:00:00Z" }
   ],
   licenses: [
     { id: "lic-h1-1", dealer_account_id: "h1", user_id: "u2", created_at: "2026-01-10T08:00:00Z" },
@@ -456,11 +457,12 @@ export const dataService = {
     return dealerId ? state.users.filter(u => u.dealer_account_id === dealerId) : state.users;
   },
 
-  async createUser(dealerId: string | null, email: string, role: 'dealer_admin' | 'user', tempPass: string): Promise<any> {
+  async createUser(dealerId: string | null, email: string, role: 'dealer_admin' | 'user', tempPass: string, name?: string): Promise<any> {
     const newUser = {
       id: "u-" + Math.random().toString(36).substring(4),
       dealer_account_id: dealerId,
       email,
+      name: name || '',
       role,
       temp_password: tempPass,
       password_reset_required: true,

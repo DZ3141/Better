@@ -39,6 +39,7 @@ export default function DashboardPage() {
   // New User Modal State
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'dealer_admin' | 'user'>('user');
 
   // Load Session and Seed
@@ -197,7 +198,7 @@ export default function DashboardPage() {
     }
 
     const tempPassword = "Temp#" + Math.floor(1000 + Math.random() * 9000);
-    await dataService.createUser(activeDealer.id, newUserEmail, newUserRole, tempPassword);
+    await dataService.createUser(activeDealer.id, newUserEmail, newUserRole, tempPassword, newUserName);
 
     // Send Welcome email
     const welcomeSubject = "Welcome to My Part Pros OEC Price Optimizer - Your Login Credentials";
@@ -206,6 +207,7 @@ export default function DashboardPage() {
 
     setUserModalOpen(false);
     setNewUserEmail('');
+    setNewUserName('');
     showToast(`User created. Welcome passcode email dispatched to ${newUserEmail}`);
     refreshDealerData(activeDealer.id);
   };
@@ -476,6 +478,20 @@ export default function DashboardPage() {
   const countUniqueCustomers = new Set(logsList.map(l => l.customer_number)).size;
   const countAssignedSeats = licensesList.filter(l => l.user_id !== null).length;
 
+  const countTodayQuotes = logsList.filter(l => {
+    const logDate = new Date(l.created_at);
+    const today = new Date();
+    return logDate.getDate() === today.getDate() &&
+           logDate.getMonth() === today.getMonth() &&
+           logDate.getFullYear() === today.getFullYear();
+  }).length;
+
+  const getUserDisplayName = (userId: string) => {
+    const usr = usersList.find(u => u.id === userId);
+    if (!usr) return 'System / Ext';
+    return usr.name ? usr.name : usr.email.split('@')[0];
+  };
+
   if (!user || isLoading) {
     return (
       <div style={{ 
@@ -650,12 +666,12 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
             <div className="stats-grid">
               <div className="stat-card green-accent">
-                <div className="stat-card-label">Active Licenses</div>
-                <div className="stat-card-value">{countAssignedSeats} / {activeDealer.license_count}</div>
-                <div className="stat-card-subtext">Assigned seats / total purchased</div>
+                <div className="stat-card-label">Today's Quotes</div>
+                <div className="stat-card-value">{countTodayQuotes}</div>
+                <div className="stat-card-subtext">Quote optimizations processed today</div>
               </div>
               <div className="stat-card orange-accent">
-                <div className="stat-card-label">Quote Optimizations</div>
+                <div className="stat-card-label">Parts Quoted with MPP</div>
                 <div className="stat-card-value">{countTotalClicks}</div>
                 <div className="stat-card-subtext">Total quote attempts processed</div>
               </div>
@@ -838,6 +854,7 @@ export default function DashboardPage() {
                       <tr>
                         <th>Part Number</th>
                         <th>Customer</th>
+                        <th>Quoted By</th>
                         <th>Original</th>
                         <th>Optimized</th>
                         <th>Type</th>
@@ -849,6 +866,7 @@ export default function DashboardPage() {
                         <tr key={l.id}>
                           <td style={{ fontFamily: 'var(--font-mono)' }}>{l.part_number}</td>
                           <td>{l.customer_name || l.customer_number || 'Default'}</td>
+                          <td style={{ fontWeight: 600 }}>{getUserDisplayName(l.user_id)}</td>
                           <td style={{ fontFamily: 'var(--font-mono)' }}>${Number(l.original_price).toFixed(2)}</td>
                           <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--color-green-primary)' }}>${Number(l.optimized_price).toFixed(2)}</td>
                           <td>
@@ -860,7 +878,7 @@ export default function DashboardPage() {
                         </tr>
                       ))}
                       {logsList.length === 0 && (
-                        <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No quote logs recorded yet.</td></tr>
+                        <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No quote logs recorded yet.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1073,6 +1091,7 @@ export default function DashboardPage() {
                 <table className="data-table">
                   <thead>
                     <tr>
+                      <th>Staff Name</th>
                       <th>Email Address</th>
                       <th>Role</th>
                       <th>Temporary Password</th>
@@ -1084,6 +1103,7 @@ export default function DashboardPage() {
                   <tbody>
                     {usersList.map(u => (
                       <tr key={u.id}>
+                        <td style={{ fontWeight: 600 }}>{u.name || '—'}</td>
                         <td style={{ fontWeight: 600 }}>{u.email}</td>
                         <td>
                           <span className={`badge ${u.role === 'dealer_admin' ? 'badge-info' : 'badge-warning'}`}>
@@ -1271,6 +1291,7 @@ export default function DashboardPage() {
                     <th>Timestamp</th>
                     <th>Part Number</th>
                     <th>Customer</th>
+                    <th>Quoted By</th>
                     <th>Cost</th>
                     <th>Original OEC</th>
                     <th>Optimized Price</th>
@@ -1287,6 +1308,7 @@ export default function DashboardPage() {
                       </td>
                       <td style={{ fontFamily: 'var(--font-mono)' }}>{l.part_number}</td>
                       <td>{l.customer_name || l.customer_number || 'Default'}</td>
+                      <td style={{ fontWeight: 600 }}>{getUserDisplayName(l.user_id)}</td>
                       <td style={{ fontFamily: 'var(--font-mono)' }}>${Number(l.cost).toFixed(2)}</td>
                       <td style={{ fontFamily: 'var(--font-mono)' }}>${Number(l.original_price).toFixed(2)}</td>
                       <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--color-green-primary)' }}>
@@ -1306,7 +1328,7 @@ export default function DashboardPage() {
                     </tr>
                   ))}
                   {filteredLogs.length === 0 && (
-                    <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No logs found matching query.</td></tr>
+                    <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No logs found matching query.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1436,6 +1458,18 @@ export default function DashboardPage() {
             </div>
             <form onSubmit={handleCreateUser}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="form-group">
+                  <label htmlFor="user-name">Staff Member Full Name</label>
+                  <input 
+                    type="text" 
+                    id="user-name" 
+                    required 
+                    placeholder="John Doe"
+                    value={newUserName}
+                    onChange={(e) => setNewUserName(e.target.value)}
+                  />
+                </div>
+
                 <div className="form-group">
                   <label htmlFor="user-email">User Email Address</label>
                   <input 
