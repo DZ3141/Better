@@ -57,6 +57,15 @@ export default function SuperadminPage() {
   const [hardExpiryDate, setHardExpiryDate] = useState('');
   const [licenseChanges, setLicenseChanges] = useState<any[]>([]);
 
+  // Create User Modal State
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [newUserDealerId, setNewUserDealerId] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserRole, setNewUserRole] = useState<'dealer_admin' | 'user'>('dealer_admin');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [assignLicenseToAdmin, setAssignLicenseToAdmin] = useState(false);
+
   // Password reset search
   const [searchUserEmail, setSearchUserEmail] = useState('');
 
@@ -431,6 +440,40 @@ export default function SuperadminPage() {
     await dataService.rejectPendingApproval(appId);
     showToast('Signup request rejected and removed.');
     loadSuperData();
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserDealerId || !newUserEmail || !newUserPassword) {
+      showToast('Dealer, email, and password are required.', 'error');
+      return;
+    }
+
+    try {
+      await dataService.createUser(
+        newUserDealerId,
+        newUserEmail,
+        newUserRole,
+        newUserPassword,
+        newUserName,
+        newUserRole === 'user' || assignLicenseToAdmin
+      );
+
+      // Send Welcome email
+      const welcomeSubject = "Welcome to My Part Pros OEC Price Optimizer - Your Login Credentials";
+      const welcomeBody = `Hi,\n\nYour user account has been created.\n\nYour login details are:\nEmail: ${newUserEmail}\nTemporary Password: ${newUserPassword}\n\nOn your first login you will be prompted to change this password.`;
+      await dataService.sendEmail(newUserEmail, welcomeSubject, welcomeBody);
+
+      setUserModalOpen(false);
+      setNewUserEmail('');
+      setNewUserName('');
+      setNewUserPassword('');
+      setAssignLicenseToAdmin(false);
+      showToast(`User ${newUserEmail} created. Welcome passcode email dispatched.`);
+      loadSuperData();
+    } catch (err: any) {
+      showToast(`Error: ${err.message || 'Failed to create user'}`, 'error');
+    }
   };
 
   // Password Reset Generator
@@ -939,14 +982,26 @@ export default function SuperadminPage() {
                 <h2>User Password Passcode Resets</h2>
                 <p>Generate fresh temporary passcodes for any user or administrator in the system. Dispatches email credentials instantly.</p>
               </div>
-              <div className="panel-header-actions">
+              <div className="panel-header-actions" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                 <input 
                   type="text" 
                   placeholder="Search user email..." 
                   value={searchUserEmail}
                   onChange={(e) => setSearchUserEmail(e.target.value)}
-                  style={{ width: '280px', padding: '6px 12px', fontSize: '13px' }}
+                  style={{ width: '280px', padding: '6px 12px', fontSize: '13px', margin: 0 }}
                 />
+                <button 
+                  className="btn btn-primary btn-sm" 
+                  onClick={() => {
+                    if (dealers.length > 0) {
+                      setNewUserDealerId(dealers[0].id);
+                    }
+                    setNewUserPassword("Temp#" + Math.floor(1000 + Math.random() * 9000));
+                    setUserModalOpen(true);
+                  }}
+                >
+                  + Create Admin/User
+                </button>
               </div>
             </div>
 
@@ -1551,6 +1606,104 @@ export default function SuperadminPage() {
               <div className="modal-footer">
                 <button className="btn btn-secondary" type="button" onClick={() => setTrialModalOpen(false)}>Cancel</button>
                 <button className="btn btn-primary" type="submit">Apply Updates</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================== */}
+      {/* MODAL: CREATE USER */}
+      {/* ============================================== */}
+      {userModalOpen && (
+        <div className="modal-overlay active">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Create User / Admin Profile</h3>
+              <button className="modal-close" onClick={() => setUserModalOpen(false)}>×</button>
+            </div>
+            <form onSubmit={handleCreateUser}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="form-group">
+                  <label htmlFor="user-dealer">Select Dealership</label>
+                  <select 
+                    id="user-dealer"
+                    required
+                    value={newUserDealerId}
+                    onChange={(e) => setNewUserDealerId(e.target.value)}
+                  >
+                    {dealers.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="user-email">Email Address</label>
+                  <input 
+                    type="email" 
+                    id="user-email" 
+                    required 
+                    placeholder="name@dealership.com"
+                    value={newUserEmail}
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="user-name">Staff Name</label>
+                  <input 
+                    type="text" 
+                    id="user-name" 
+                    placeholder="John Doe"
+                    value={newUserName}
+                    onChange={(e) => setNewUserName(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="user-role">Role</label>
+                    <select 
+                      id="user-role"
+                      value={newUserRole}
+                      onChange={(e) => setNewUserRole(e.target.value as any)}
+                    >
+                      <option value="dealer_admin">Dealer Admin</option>
+                      <option value="user">Chrome Extension User</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="user-temp-pass">Temporary Password</label>
+                    <input 
+                      type="text" 
+                      id="user-temp-pass" 
+                      required 
+                      value={newUserPassword}
+                      onChange={(e) => setNewUserPassword(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {newUserRole === 'dealer_admin' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                    <input 
+                      type="checkbox" 
+                      id="user-assign-license"
+                      checked={assignLicenseToAdmin}
+                      onChange={(e) => setAssignLicenseToAdmin(e.target.checked)}
+                      style={{ width: 'auto', cursor: 'pointer' }}
+                    />
+                    <label htmlFor="user-assign-license" style={{ margin: 0, fontSize: '13px', cursor: 'pointer', userSelect: 'none' }}>
+                      Assign extension license (allows login to Chrome extension)
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer" style={{ marginTop: '24px' }}>
+                <button className="btn btn-secondary" type="button" onClick={() => setUserModalOpen(false)}>Cancel</button>
+                <button className="btn btn-primary" type="submit">Create User Account</button>
               </div>
             </form>
           </div>
