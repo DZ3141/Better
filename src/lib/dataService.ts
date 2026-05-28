@@ -270,6 +270,12 @@ export const dataService = {
     if (isSupabaseConfigured && supabase) {
       const { error } = await supabase.auth.updateUser({ password: newPass });
       if (error) return false;
+      
+      // Clear temp password flags in public schema
+      await supabase.from('users').update({ 
+        temp_password: null, 
+        password_reset_required: false 
+      }).ilike('email', email);
     }
     const state = getLocalStorageState();
     const userIndex = state.users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
@@ -474,7 +480,6 @@ export const dataService = {
       id: isSupabaseConfigured && supabase ? generateUUID() : "u-" + Math.random().toString(36).substring(4),
       dealer_account_id: dealerId,
       email: email.toLowerCase(),
-      name: name || '',
       role,
       temp_password: tempPass,
       password_reset_required: true,
