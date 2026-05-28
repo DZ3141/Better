@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const { data: userProfile, error: profileError } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email.toLowerCase())
+      .ilike('email', email)
       .maybeSingle();
 
     if (profileError || !userProfile) {
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
         temp_password: null,
         password_reset_required: false
       })
-      .eq('email', email.toLowerCase());
+      .eq('id', userProfile.id);
 
     return corsResponse({ success: true, message: 'Password updated successfully. You can now use the extension.' });
 

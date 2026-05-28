@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const { data: userProfile, error: profileError } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email.toLowerCase())
+      .ilike('email', email)
       .maybeSingle();
 
     // 2. Check if they are logging in with a valid temporary passcode
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
         const { data: profile } = await supabase
           .from('users')
           .select('*')
-          .eq('email', authData.user.email ? authData.user.email.toLowerCase() : '')
+          .ilike('email', authData.user.email || '')
           .maybeSingle();
         finalUserProfile = profile;
       }
