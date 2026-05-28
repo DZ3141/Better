@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase';
 
 function corsResponse(data: any, status = 200) {
   const response = NextResponse.json(data, { status });
@@ -38,14 +38,22 @@ export async function POST(request: Request) {
       });
     }
 
+    // Use admin client if available to bypass RLS policies on the server side
+    const client = supabaseAdmin || supabase;
+
+    if (!supabaseAdmin) {
+      console.warn('[VALIDATE SESSION API] supabaseAdmin client is not initialized. Database queries might be restricted by RLS.');
+    }
+
     // 1. Verify license key
-    const { data: license, error: licError } = await supabase
+    const { data: license, error: licError } = await client
       .from('licenses')
       .select('*')
       .eq('id', licenseKey)
       .single();
 
     if (licError || !license) {
+      console.error('[VALIDATE SESSION API] License verification failed:', licError);
       return corsResponse({ error: 'INVALID_LICENSE', message: 'License key not found.' }, 404);
     }
 
@@ -54,23 +62,25 @@ export async function POST(request: Request) {
     }
 
     // 2. Fetch associated user and dealer status
-    const { data: user, error: userError } = await supabase
+    const { data: user, error: userError } = await client
       .from('users')
       .select('*')
       .eq('id', license.user_id)
       .single();
 
     if (userError || !user) {
+      console.error('[VALIDATE SESSION API] User profile lookup failed:', userError);
       return corsResponse({ error: 'USER_NOT_FOUND', message: 'Assigned user not found.' }, 404);
     }
 
-    const { data: dealer, error: dealerError } = await supabase
+    const { data: dealer, error: dealerError } = await client
       .from('dealer_accounts')
       .select('*')
       .eq('id', license.dealer_account_id)
       .single();
 
     if (dealerError || !dealer) {
+      console.error('[VALIDATE SESSION API] Dealer account lookup failed:', dealerError);
       return corsResponse({ error: 'DEALER_NOT_FOUND', message: 'Associated dealer account not found.' }, 404);
     }
 
@@ -89,7 +99,7 @@ export async function POST(request: Request) {
     }
 
     // 3. Check for session conflict (one active device fingerprint per license key)
-    const { data: existingSession, error: sessError } = await supabase
+    const { data: existingSession, error: sessError } = await client
       .from('sessions')
       .select('*')
       .eq('license_id', licenseKey)
@@ -103,12 +113,12 @@ export async function POST(request: Request) {
         return corsResponse({ error: 'SESSION_CONFLICT', message: 'License is already active on another device.' }, 409);
       } else {
         // Abandoned session: delete it
-        await supabase.from('sessions').delete().eq('id', existingSession.id);
+        await client.from('sessions').delete().eq('id', existingSession.id);
       }
     }
 
     // 4. Create or update session
-    const { data: session, error: upsertError } = await supabase
+    const { data: session, error: upsertError } = await client
       .from('sessions')
       .upsert({
         license_id: licenseKey,
@@ -119,11 +129,12 @@ export async function POST(request: Request) {
       .single();
 
     if (upsertError || !session) {
+      console.error('[VALIDATE SESSION API] Session upsert failed:', upsertError);
       return corsResponse({ error: 'SESSION_ERROR', message: 'Failed to establish device session.' }, 500);
     }
 
     // 5. Log in extension_sessions
-    await supabase.from('extension_sessions').insert({
+    await client.from('extension_sessions').insert({
       license_id: licenseKey,
       user_id: license.user_id,
       dealer_account_id: license.dealer_account_id

@@ -1108,7 +1108,26 @@ export default function DashboardPage() {
 
                       return (
                         <tr key={u.id}>
-                          <td style={{ fontWeight: 600 }}>{u.name || '—'}</td>
+                          <td style={{ fontWeight: 600 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span>{u.name || '—'}</span>
+                              <button 
+                                onClick={async () => {
+                                  const newName = prompt(`Enter new staff name for ${u.email}:`, u.name || '');
+                                  if (newName === null) return;
+                                  const cleanName = newName.trim();
+                                  await dataService.updateUser(u.id, { name: cleanName });
+                                  showToast('Staff name updated successfully.');
+                                  refreshDealerData(activeDealer.id);
+                                }}
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '2px 6px', fontSize: '10px', height: 'auto', minHeight: 0, lineHeight: 1, cursor: 'pointer' }}
+                                title="Edit Staff Name"
+                              >
+                                ✏️
+                              </button>
+                            </div>
+                          </td>
                           <td style={{ fontWeight: 600 }}>{u.email}</td>
                           <td>
                             <span className={`badge ${u.role === 'dealer_admin' ? 'badge-info' : 'badge-warning'}`}>
