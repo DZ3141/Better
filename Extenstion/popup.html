@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MPP Price Optimizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0b0b0a;
+      --card-bg: #141413;
+      --accent-gold: #f6b23a;
+      --accent-gold-hover: #d97706;
+      --text-white: #ffffff;
+      --text-gray: #a1a1aa;
+      --border-color: rgba(246, 178, 58, 0.15);
+      --error-color: #ef4444;
+      --success-color: #10b981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 320px;
+      background-color: var(--bg-dark);
+      color: var(--text-white);
+      font-family: 'Inter', sans-serif;
+      padding: 20px;
+      font-size: 14px;
+      overflow-x: hidden;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header styling */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 14px;
+    }
+
+    .logo-container {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--accent-gold), #b45309);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      color: var(--bg-dark);
+      font-size: 20px;
+      box-shadow: 0 4px 12px rgba(246, 178, 58, 0.25);
+    }
+
+    .header-text h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--text-white);
+    }
+
+    .header-text p {
+      font-size: 10px;
+      color: var(--text-gray);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 1px;
+    }
+
+    /* Forms & views */
+    .view {
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .view.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-gray);
+    }
+
+    input {
+      background-color: #1a1a19;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: var(--text-white);
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    input:focus {
+      border-color: var(--accent-gold);
+      box-shadow: 0 0 0 2px rgba(246, 178, 58, 0.15);
+      background-color: #20201f;
+    }
+
+    .btn {
+      background-color: var(--accent-gold);
+      color: var(--bg-dark);
+      border: none;
+      border-radius: 6px;
+      padding: 11px;
+      font-weight: 600;
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn:hover {
+      background-color: var(--accent-gold-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      background-color: transparent;
+      color: var(--text-gray);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: none;
+    }
+
+    .btn-secondary:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+      color: var(--text-white);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Message Banner */
+    .message-banner {
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      line-height: 1.4;
+      display: none;
+    }
+
+    .message-banner.error {
+      display: block;
+      background-color: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
+    }
+
+    .message-banner.success {
+      display: block;
+      background-color: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #a7f3d0;
+    }
+
+    /* Session display card */
+    .session-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .session-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .session-row span.val {
+      font-weight: 500;
+      color: var(--text-white);
+      font-size: 13.5px;
+    }
+
+    .session-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background-color: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--success-color);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--success-color);
+      border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulse 1.6s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+      }
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+      }
+    }
+
+    /* Loader */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(11, 11, 10, 0.2);
+      border-radius: 50%;
+      border-top-color: var(--bg-dark);
+      animation: spin 0.8s linear infinite;
+    }
+
+    .btn-secondary .spinner {
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: var(--text-white);
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Extension Header -->
+    <div class="header">
+      <div class="logo-container">M</div>
+      <div class="header-text">
+        <h1>My Part Pros</h1>
+        <p>Price Optimizer</p>
+      </div>
+    </div>
+
+    <!-- Message Display Panel -->
+    <div id="banner" class="message-banner"></div>
+
+    <!-- 1. LOGIN VIEW -->
+    <div id="login-view" class="view active">
+      <div class="input-group">
+        <label for="login-email">Email Address</label>
+        <input type="email" id="login-email" placeholder="parts@dealership.com" required>
+      </div>
+      <div class="input-group">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" required>
+      </div>
+      <button id="login-btn" class="btn">
+        <span>Log In</span>
+      </button>
+    </div>
+
+    <!-- 2. RESET PASSWORD VIEW -->
+    <div id="reset-view" class="view">
+      <div class="input-group">
+        <label for="reset-current">Current Passcode</label>
+        <input type="password" id="reset-current" placeholder="Temporary Passcode" required>
+      </div>
+      <div class="input-group">
+        <label for="reset-new">New Password</label>
+        <input type="password" id="reset-new" placeholder="At least 6 characters" required>
+      </div>
+      <div class="input-group">
+        <label for="reset-confirm">Confirm New Password</label>
+        <input type="password" id="reset-confirm" placeholder="Re-enter new password" required>
+      </div>
+      <button id="reset-btn" class="btn">
+        <span>Update Password</span>
+      </button>
+      <button id="reset-back-btn" class="btn btn-secondary">Cancel</button>
+    </div>
+
+    <!-- 3. SESSION / LOGGED IN VIEW -->
+    <div id="session-view" class="view">
+      <div class="session-card">
+        <div class="session-status">
+          <span class="pulse-dot"></span>
+          <span>Active Session</span>
+        </div>
+        <div class="session-row">
+          <label>Dealership</label>
+          <span id="sess-dealer" class="val">-</span>
+        </div>
+        <div class="session-row">
+          <label>User Account</label>
+          <span id="sess-user" class="val">-</span>
+        </div>
+        <div class="session-row">
+          <label>License Key</label>
+          <span id="sess-license" class="val" style="font-family: monospace; font-size: 11px;">-</span>
+        </div>
+      </div>
+      <button id="logout-btn" class="btn btn-secondary">Log Out</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

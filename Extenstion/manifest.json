@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "My Part Pros OEC Price Optimizer",
+  "version": "1.0.0",
+  "description": "Dynamic price optimization integration for OEC CollisionLink.",
+  "permissions": ["storage", "activeTab", "alarms"],
+  "host_permissions": [
+    "https://portal.oeconnection.com/*",
+    "https://*.oeconnection.com/*",
+    "https://better-r4mnqg7i7-davidmpp.vercel.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://portal.oeconnection.com/*",
+        "https://*.oeconnection.com/*"
+      ],
+      "js": ["fingerprint.js", "content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}
