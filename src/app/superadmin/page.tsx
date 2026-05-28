@@ -30,6 +30,26 @@ export default function SuperadminPage() {
   const [newDealerStatus, setNewDealerStatus] = useState<'trial' | 'active'>('trial');
   const [newDealerTrialDays, setNewDealerTrialDays] = useState(14);
 
+  // Create Invoice Modal State
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [invDealerId, setInvDealerId] = useState('');
+  const [invNumber, setInvNumber] = useState('');
+  const [invDate, setInvDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [invSeatCount, setInvSeatCount] = useState(0);
+  const [invAmount, setInvAmount] = useState(0);
+  const [invStatus, setInvStatus] = useState('Unpaid');
+
+  // Trigger default updates on dealer selection for manual invoice
+  useEffect(() => {
+    if (invDealerId && dealers.length > 0) {
+      const d = dealers.find(x => x.id === invDealerId);
+      if (d) {
+        setInvSeatCount(d.license_count);
+        setInvAmount(d.license_count * d.monthly_price_per_seat);
+      }
+    }
+  }, [invDealerId, dealers]);
+
   // Extend Trial Modal
   const [trialModalOpen, setTrialModalOpen] = useState(false);
   const [selectedDealerId, setSelectedDealerId] = useState('');
@@ -240,6 +260,26 @@ export default function SuperadminPage() {
     setNewDealerName('');
     showToast(`Account provisioned. Admin passcode email dispatched to ${defaultAdminEmail}`);
     loadSuperData();
+  };
+
+  const handleCreateInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invDealerId || !invNumber) return;
+    try {
+      await dataService.createInvoice(
+        invDealerId,
+        invDate,
+        invSeatCount,
+        invAmount,
+        invStatus,
+        invNumber
+      );
+      showToast(`Invoice ${invNumber} successfully created.`);
+      setInvoiceModalOpen(false);
+      loadSuperData();
+    } catch (err: any) {
+      showToast(`Failed to create invoice: ${err.message}`, 'error');
+    }
   };
 
   // Extend trial / set hard expiration dates
@@ -728,9 +768,48 @@ export default function SuperadminPage() {
                       <td style={{ fontWeight: 600 }}>{d.name}</td>
                       <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>{d.odoo_customer_id}</td>
                       <td>
-                        <span className={`badge ${d.status === 'active' ? 'badge-success' : d.status === 'trial' ? 'badge-info' : d.status === 'suspended' ? 'badge-danger' : 'badge-warning'}`}>
-                          {d.status}
-                        </span>
+                        <select 
+                          value={d.status}
+                          onChange={async (e) => {
+                            const newStatus = e.target.value;
+                            const updates: any = { status: newStatus };
+                            let logDetails = `License status updated to ${newStatus}.`;
+                            
+                            if (newStatus === 'trial') {
+                              const days = prompt("Enter trial length in days from today:", "14");
+                              if (!days) return;
+                              const daysNum = parseInt(days);
+                              if (isNaN(daysNum) || daysNum <= 0) return;
+                              const endsAt = new Date();
+                              endsAt.setDate(endsAt.getDate() + daysNum);
+                              updates.trial_ends_at = endsAt.toISOString();
+                              logDetails = `License status updated to trial. Set trial length to ${daysNum} days.`;
+                            } else {
+                              updates.trial_ends_at = null;
+                            }
+                            await dataService.updateDealer(d.id, updates);
+                            await dataService.logLicenseChange(d.name, logDetails);
+                            showToast(`Status updated to ${newStatus}.`);
+                            loadSuperData();
+                          }}
+                          className="margin-input"
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '13px',
+                            borderRadius: '6px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            backgroundColor: 'var(--bg-surface)',
+                            border: '1px solid var(--border-dim)',
+                            color: d.status === 'active' ? '#10b981' : d.status === 'suspended' ? '#ef4444' : '#3b82f6',
+                            width: '130px',
+                            textAlign: 'center'
+                          }}
+                        >
+                          <option value="trial" style={{ color: '#3b82f6', backgroundColor: 'var(--bg-surface-elevated)' }}>Trial</option>
+                          <option value="active" style={{ color: '#10b981', backgroundColor: 'var(--bg-surface-elevated)' }}>Active</option>
+                          <option value="suspended" style={{ color: '#ef4444', backgroundColor: 'var(--bg-surface-elevated)' }}>Deactivated</option>
+                        </select>
                       </td>
                       <td>
                         <input 
@@ -749,14 +828,33 @@ export default function SuperadminPage() {
                         />
                       </td>
                       <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        {d.trial_ends_at ? new Date(d.trial_ends_at).toLocaleDateString() : 'Active/No Trial'}
+                        {d.trial_ends_at ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>{new Date(d.trial_ends_at).toLocaleDateString()}</span>
+                            <button 
+                              className="btn btn-secondary btn-sm" 
+                              style={{ padding: '2px 6px', fontSize: '10px', height: 'auto', minHeight: '0' }}
+                              onClick={async () => {
+                                const days = prompt("Reset trial length from today (days):", "14");
+                                if (!days) return;
+                                const daysNum = parseInt(days);
+                                if (isNaN(daysNum) || daysNum <= 0) return;
+                                const endsAt = new Date();
+                                endsAt.setDate(endsAt.getDate() + daysNum);
+                                await dataService.updateDealer(d.id, { trial_ends_at: endsAt.toISOString(), status: 'trial' });
+                                await dataService.logLicenseChange(d.name, `Trial length updated to ${daysNum} days.`);
+                                showToast("Trial period updated.");
+                                loadSuperData();
+                              }}
+                            >
+                              Edit Days
+                            </button>
+                          </div>
+                        ) : 'Active/No Trial'}
                       </td>
                       <td style={{ display: 'flex', gap: '8px' }}>
                         <button className="btn btn-secondary btn-sm" onClick={() => handleOpenExtendTrial(d.id)}>
                           Adjust Expiry
-                        </button>
-                        <button className={`btn btn-sm ${d.status === 'suspended' ? 'btn-success' : 'btn-danger'}`} onClick={() => handleToggleDealerStatus(d.id, d.status)}>
-                          {d.status === 'suspended' ? 'Activate' : 'Suspend'}
                         </button>
                         <button className="btn btn-danger btn-sm" onClick={() => handleDeleteDealer(d.id, d.name)}>
                           Delete
@@ -909,6 +1007,18 @@ export default function SuperadminPage() {
                 <h2>Dealer Subscription Invoices</h2>
                 <p>Monitor status and manually mark Odoo invoices as Paid.</p>
               </div>
+              <button 
+                className="btn btn-primary btn-sm" 
+                onClick={() => {
+                  if (dealers.length > 0) {
+                    setInvDealerId(dealers[0].id);
+                  }
+                  setInvNumber('INV-' + Math.floor(10000 + Math.random() * 90000));
+                  setInvoiceModalOpen(true);
+                }}
+              >
+                + Create Invoice
+              </button>
             </div>
 
              <div className="table-container">
@@ -928,7 +1038,9 @@ export default function SuperadminPage() {
                     const dl = dealers.find(d => d.id === inv.dealer_account_id);
                     return (
                       <tr key={inv.id}>
-                        <td style={{ fontFamily: 'var(--font-mono)' }}>{inv.id}</td>
+                        <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                          {inv.invoice_number || inv.id.substring(0, 8)}
+                        </td>
                         <td style={{ fontWeight: 600 }}>{dl ? dl.name : 'Unknown Dealer'}</td>
                         <td>{inv.date}</td>
                         <td>{inv.seat_count} seats</td>
@@ -988,8 +1100,9 @@ export default function SuperadminPage() {
                   <thead>
                     <tr>
                       <th style={{ width: '180px' }}>Date</th>
-                      <th style={{ width: '220px' }}>Dealership</th>
+                      <th style={{ width: '200px' }}>Dealership</th>
                       <th>Details of Change</th>
+                      <th style={{ width: '150px' }}>Review Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1000,11 +1113,28 @@ export default function SuperadminPage() {
                         </td>
                         <td style={{ fontWeight: 600 }}>{log.dealer_name}</td>
                         <td>{log.details}</td>
+                        <td>
+                          {log.reviewed ? (
+                            <span className="badge badge-success" style={{ opacity: 0.6 }}>Reviewed</span>
+                          ) : (
+                            <button 
+                              className="btn btn-warning btn-sm"
+                              style={{ padding: '4px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}
+                              onClick={async () => {
+                                await dataService.markLicenseChangeReviewed(log.id);
+                                showToast("Audit log marked as reviewed.");
+                                loadSuperData();
+                              }}
+                            >
+                              Mark Complete
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                     {licenseChanges.length === 0 && (
                       <tr>
-                        <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>
+                        <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>
                           No license change records found.
                         </td>
                       </tr>
@@ -1271,6 +1401,112 @@ export default function SuperadminPage() {
               <div className="modal-footer">
                 <button className="btn btn-secondary" type="button" onClick={() => setDealerModalOpen(false)}>Cancel</button>
                 <button className="btn btn-primary" type="submit">Deploy Contract</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================== */}
+      {/* MODAL: CREATE INVOICE */}
+      {/* ============================================== */}
+      {invoiceModalOpen && (
+        <div className="modal-overlay active">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Create CRM Billing Invoice</h3>
+              <button className="modal-close" onClick={() => setInvoiceModalOpen(false)}>×</button>
+            </div>
+            <form onSubmit={handleCreateInvoice}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="form-group">
+                  <label htmlFor="inv-dealer">Select Dealership</label>
+                  <select 
+                    id="inv-dealer"
+                    required
+                    value={invDealerId}
+                    onChange={(e) => setInvDealerId(e.target.value)}
+                  >
+                    {dealers.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="inv-num">Odoo Invoice Number</label>
+                    <input 
+                      type="text" 
+                      id="inv-num" 
+                      required 
+                      placeholder="INV-2026-0001"
+                      value={invNumber}
+                      onChange={(e) => setInvNumber(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="inv-date">Billing Date</label>
+                    <input 
+                      type="date" 
+                      id="inv-date" 
+                      required 
+                      value={invDate}
+                      onChange={(e) => setInvDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="inv-seats">Seat Count</label>
+                    <input 
+                      type="number" 
+                      id="inv-seats" 
+                      required 
+                      min="1"
+                      value={invSeatCount}
+                      onChange={(e) => {
+                        const seats = Number(e.target.value);
+                        setInvSeatCount(seats);
+                        const d = dealers.find(x => x.id === invDealerId);
+                        if (d) {
+                          setInvAmount(seats * d.monthly_price_per_seat);
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="inv-amount">Invoice Amount ($)</label>
+                    <input 
+                      type="number" 
+                      id="inv-amount" 
+                      required 
+                      min="0"
+                      step="0.01"
+                      value={invAmount}
+                      onChange={(e) => setInvAmount(Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="inv-status">Payment Status</label>
+                  <select 
+                    id="inv-status"
+                    value={invStatus}
+                    onChange={(e) => setInvStatus(e.target.value)}
+                  >
+                    <option value="Unpaid">Unpaid</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Overdue">Overdue</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" type="button" onClick={() => setInvoiceModalOpen(false)}>Cancel</button>
+                <button className="btn btn-primary" type="submit">Create Invoice Record</button>
               </div>
             </form>
           </div>

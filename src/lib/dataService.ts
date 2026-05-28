@@ -95,6 +95,7 @@ export interface Invoice {
   seat_count: number;
   amount: number;
   status: string;
+  invoice_number?: string;
 }
 
 export interface SuperadminSettings {
@@ -1046,6 +1047,39 @@ export const dataService = {
     return false;
   },
 
+  async createInvoice(
+    dealerId: string,
+    date: string,
+    seatCount: number,
+    amount: number,
+    status: string,
+    invoiceNumber: string
+  ): Promise<any> {
+    const newInvoice = {
+      id: typeof crypto !== 'undefined' ? crypto.randomUUID() : "inv_" + Math.random().toString(36).substring(4),
+      dealer_account_id: dealerId,
+      date,
+      seat_count: Number(seatCount),
+      amount: Number(amount),
+      status,
+      invoice_number: invoiceNumber,
+      created_at: new Date().toISOString()
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('invoices').insert(newInvoice);
+      if (error) {
+        console.error("Error inserting invoice into Supabase:", error);
+        throw new Error(error.message);
+      }
+    }
+
+    const state = getLocalStorageState();
+    state.invoices.push(newInvoice);
+    saveLocalStorageState(state);
+    return newInvoice;
+  },
+
   // --- LICENSE CHANGE AUDIT LOGS ---
   async getLicenseChanges(): Promise<any[]> {
     if (typeof window !== 'undefined') {
@@ -1078,10 +1112,33 @@ export const dataService = {
         id: "chg-" + Math.random().toString(36).substring(4),
         dealer_name: dealerName,
         details: details,
+        reviewed: false,
         created_at: new Date().toISOString()
       });
       localStorage.setItem('mpp_license_changes', JSON.stringify(list));
     }
+  },
+
+  async markLicenseChangeReviewed(logId: string): Promise<boolean> {
+    if (typeof window !== 'undefined') {
+      const logs = localStorage.getItem('mpp_license_changes');
+      if (logs) {
+        try {
+          const list = JSON.parse(logs);
+          if (Array.isArray(list)) {
+            const index = list.findIndex(x => x.id === logId);
+            if (index !== -1) {
+              list[index].reviewed = true;
+              localStorage.setItem('mpp_license_changes', JSON.stringify(list));
+              return true;
+            }
+          }
+        } catch (e) {
+          console.error("Failed to mark license change as reviewed:", e);
+        }
+      }
+    }
+    return false;
   },
 
   // --- EMAIL SIMULATION LOGS ---

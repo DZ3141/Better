@@ -31,6 +31,10 @@ export default function DashboardPage() {
   const [franchiseMarkups, setFranchiseMarkups] = useState<Record<string, number>>({});
   const [searchCustomer, setSearchCustomer] = useState('');
   
+  // Customer Pagination
+  const [customerPage, setCustomerPage] = useState(0);
+  const customersPerPage = 15;
+  
   // Log Pagination & Search
   const [searchLog, setSearchLog] = useState('');
   const [logPage, setLogPage] = useState(0);
@@ -446,6 +450,11 @@ export default function DashboardPage() {
   const filteredCustomers = customersList.filter(c => 
     c.name.toLowerCase().includes(searchCustomer.toLowerCase()) ||
     c.account_number.toLowerCase().includes(searchCustomer.toLowerCase())
+  );
+
+  const paginatedCustomers = filteredCustomers.slice(
+    customerPage * customersPerPage,
+    (customerPage + 1) * customersPerPage
   );
 
   const calculateDaysLeft = (endsAtStr: string | null) => {
@@ -990,7 +999,7 @@ export default function DashboardPage() {
                     type="text" 
                     placeholder="Search by name or account #..." 
                     value={searchCustomer}
-                    onChange={(e) => setSearchCustomer(e.target.value)}
+                    onChange={(e) => { setSearchCustomer(e.target.value); setCustomerPage(0); }}
                     style={{ width: '240px', padding: '8px 12px', fontSize: '13px' }}
                   />
                   <button 
@@ -1041,7 +1050,7 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredCustomers.map(c => (
+                    {paginatedCustomers.map(c => (
                       <tr key={c.id}>
                         <td style={{ fontFamily: 'var(--font-mono)' }}>{c.account_number}</td>
                         <td style={{ fontWeight: 600 }}>{c.name}</td>
@@ -1066,6 +1075,16 @@ export default function DashboardPage() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  Showing {filteredCustomers.length === 0 ? 0 : customerPage * customersPerPage + 1}-{Math.min((customerPage + 1) * customersPerPage, filteredCustomers.length)} of {filteredCustomers.length} customers
+                </span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="btn btn-secondary btn-sm" disabled={customerPage === 0} onClick={() => setCustomerPage(p => p - 1)}>Previous</button>
+                  <button className="btn btn-secondary btn-sm" disabled={(customerPage + 1) * customersPerPage >= filteredCustomers.length} onClick={() => setCustomerPage(p => p + 1)}>Next</button>
+                </div>
               </div>
             </div>
           </div>
