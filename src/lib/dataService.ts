@@ -480,6 +480,7 @@ export const dataService = {
       id: isSupabaseConfigured && supabase ? generateUUID() : "u-" + Math.random().toString(36).substring(4),
       dealer_account_id: dealerId,
       email: email.toLowerCase(),
+      name: name || '',
       role,
       temp_password: tempPass,
       password_reset_required: true,
@@ -529,11 +530,9 @@ export const dataService = {
         const { error } = await supabase.from('users').delete().eq('id', userId);
         if (error) {
           console.error("Error deleting user from Supabase:", error);
-          return false;
         }
       } catch (err) {
         console.error("Failed to delete user from Supabase:", err);
-        return false;
       }
     }
 

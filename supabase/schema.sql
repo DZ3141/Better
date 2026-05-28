@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dealer_account_id UUID REFERENCES dealer_accounts(id) ON DELETE CASCADE,
   email TEXT UNIQUE NOT NULL,
+  name TEXT,
   role TEXT CHECK (role IN ('dealer_admin', 'user', 'superadmin')) NOT NULL,
   temp_password TEXT,
   password_reset_required BOOLEAN DEFAULT true,
