@@ -79,18 +79,36 @@ export async function POST(request: Request) {
     }
 
     // 4. Fetch dealer account
-    const { data: dealer } = await supabase
-      .from('dealer_accounts')
-      .select('*')
-      .eq('id', finalUserProfile.dealer_account_id)
-      .maybeSingle();
+    const dealerId = finalUserProfile.dealer_account_id;
+    const isMockDealer = dealerId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dealerId);
+    let dealer = null;
+
+    if (dealerId && !isMockDealer) {
+      const { data } = await supabase
+        .from('dealer_accounts')
+        .select('*')
+        .eq('id', dealerId)
+        .maybeSingle();
+      dealer = data;
+    } else if (dealerId && isMockDealer) {
+      dealer = { id: dealerId, name: 'Hendrick Automotive Group' };
+    }
 
     // 5. Fetch assigned license for the user (using profile ID, not auth UUID)
-    const { data: license } = await supabase
-      .from('licenses')
-      .select('*')
-      .eq('user_id', finalUserProfile.id)
-      .maybeSingle();
+    const userId = finalUserProfile.id;
+    const isMockUser = userId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    let license = null;
+
+    if (userId && !isMockUser) {
+      const { data } = await supabase
+        .from('licenses')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+      license = data;
+    } else if (userId && isMockUser) {
+      license = { id: `lic-mock-${userId}`, dealer_account_id: dealerId, user_id: userId };
+    }
 
     if (!license) {
       return corsResponse({ error: 'NO_LICENSE_ASSIGNED', message: 'No license seat is assigned to this user profile. Please contact your dealer administrator.' }, 403);

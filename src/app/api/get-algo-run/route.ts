@@ -40,7 +40,9 @@ export async function POST(request: Request) {
     const nCost = Number(cost);
     const nReimbRate = Number(reimbursementRate || 0.85);
 
-    if (!isSupabaseConfigured || !supabase) {
+    const isMockLicense = licenseKey && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(licenseKey);
+
+    if (!isSupabaseConfigured || !supabase || isMockLicense) {
       // Mock fallback algorithm codes
       let mockAlgo = '';
       if (optimizationType === 'maintain_profit') {

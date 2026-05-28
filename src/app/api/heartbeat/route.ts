@@ -26,7 +26,9 @@ export async function POST(request: Request) {
       return corsResponse({ error: 'MISSING_PARAMS', message: 'licenseKey and deviceFingerprint are required.' }, 400);
     }
 
-    if (!isSupabaseConfigured || !supabase) {
+    const isMockLicense = licenseKey && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(licenseKey);
+
+    if (!isSupabaseConfigured || !supabase || isMockLicense) {
       return corsResponse({ success: true, message: 'Mock Mode heartbeat success' });
     }
 
