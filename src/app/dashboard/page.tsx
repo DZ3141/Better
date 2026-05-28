@@ -555,7 +555,7 @@ export default function DashboardPage() {
       {/* Sidebar Navigation */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <div className="logo-container">M</div>
+          <img src="/icon-favcon.png" alt="My Part Pros" />
           <div>
             <div className="brand-name">My Part Pros</div>
             <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-orange-primary)', letterSpacing: '0.1em', marginTop: '2px' }}>Price Optimizer</div>
