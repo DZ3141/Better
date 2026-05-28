@@ -219,13 +219,17 @@ ON CONFLICT (id) DO NOTHING;
 -- Helper Functions to Bypass RLS Recursion (executed as SECURITY DEFINER)
 CREATE OR REPLACE FUNCTION get_user_role(user_uuid UUID)
 RETURNS TEXT AS $$
-  SELECT role FROM public.users WHERE id = user_uuid;
-$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+  SELECT role FROM public.users 
+  WHERE id = user_uuid 
+     OR email = (SELECT email FROM auth.users WHERE id = user_uuid);
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = public, auth;
 
 CREATE OR REPLACE FUNCTION get_user_dealer_account_id(user_uuid UUID)
 RETURNS UUID AS $$
-  SELECT dealer_account_id FROM public.users WHERE id = user_uuid;
-$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+  SELECT dealer_account_id FROM public.users 
+  WHERE id = user_uuid 
+     OR email = (SELECT email FROM auth.users WHERE id = user_uuid);
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = public, auth;
 
 -- Row Level Security (RLS) Configuration
 ALTER TABLE dealer_accounts ENABLE ROW LEVEL SECURITY;
@@ -270,14 +274,14 @@ DROP POLICY IF EXISTS "users_update" ON users;
 DROP POLICY IF EXISTS "users_delete" ON users;
 
 CREATE POLICY "users_select_auth" ON users FOR SELECT TO authenticated
-  USING (get_user_role(auth.uid()) = 'superadmin' OR get_user_dealer_account_id(auth.uid()) = dealer_account_id OR auth.uid() = id);
+  USING (get_user_role(auth.uid()) = 'superadmin' OR get_user_dealer_account_id(auth.uid()) = dealer_account_id OR auth.uid() = id OR email = (SELECT email FROM auth.users WHERE id = auth.uid()));
 CREATE POLICY "users_select_anon" ON users FOR SELECT TO anon
   USING (true);
 CREATE POLICY "users_insert" ON users FOR INSERT TO authenticated
   WITH CHECK (get_user_role(auth.uid()) = 'superadmin' OR (get_user_role(auth.uid()) = 'dealer_admin' AND get_user_dealer_account_id(auth.uid()) = dealer_account_id));
 CREATE POLICY "users_update" ON users FOR UPDATE TO authenticated
-  USING (get_user_role(auth.uid()) = 'superadmin' OR (get_user_role(auth.uid()) = 'dealer_admin' AND get_user_dealer_account_id(auth.uid()) = dealer_account_id) OR auth.uid() = id)
-  WITH CHECK (get_user_role(auth.uid()) = 'superadmin' OR (get_user_role(auth.uid()) = 'dealer_admin' AND get_user_dealer_account_id(auth.uid()) = dealer_account_id) OR auth.uid() = id);
+  USING (get_user_role(auth.uid()) = 'superadmin' OR (get_user_role(auth.uid()) = 'dealer_admin' AND get_user_dealer_account_id(auth.uid()) = dealer_account_id) OR auth.uid() = id OR email = (SELECT email FROM auth.users WHERE id = auth.uid()))
+  WITH CHECK (get_user_role(auth.uid()) = 'superadmin' OR (get_user_role(auth.uid()) = 'dealer_admin' AND get_user_dealer_account_id(auth.uid()) = dealer_account_id) OR auth.uid() = id OR email = (SELECT email FROM auth.users WHERE id = auth.uid()));
 CREATE POLICY "users_delete" ON users FOR DELETE TO authenticated
   USING (get_user_role(auth.uid()) = 'superadmin' OR (get_user_role(auth.uid()) = 'dealer_admin' AND get_user_dealer_account_id(auth.uid()) = dealer_account_id));
 
