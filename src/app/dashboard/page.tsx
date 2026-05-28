@@ -45,6 +45,7 @@ export default function DashboardPage() {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'dealer_admin' | 'user'>('user');
+  const [assignLicenseToAdmin, setAssignLicenseToAdmin] = useState(false);
 
   // Load Session and Seed
   useEffect(() => {
@@ -202,18 +203,57 @@ export default function DashboardPage() {
     }
 
     const tempPassword = "Temp#" + Math.floor(1000 + Math.random() * 9000);
-    await dataService.createUser(activeDealer.id, newUserEmail, newUserRole, tempPassword, newUserName);
+    try {
+      await dataService.createUser(
+        activeDealer.id, 
+        newUserEmail, 
+        newUserRole, 
+        tempPassword, 
+        newUserName,
+        newUserRole === 'user' || assignLicenseToAdmin
+      );
 
-    // Send Welcome email
-    const welcomeSubject = "Welcome to My Part Pros OEC Price Optimizer - Your Login Credentials";
-    const welcomeBody = `Hi,\n\nYour user profile has been created.\n\nYour login details are:\nEmail: ${newUserEmail}\nTemporary Password: ${tempPassword}\n\nOn your first login you will be prompted to change this password.`;
-    await dataService.sendEmail(newUserEmail, welcomeSubject, welcomeBody);
+      // Send Welcome email
+      const welcomeSubject = "Welcome to My Part Pros OEC Price Optimizer - Your Login Credentials";
+      const welcomeBody = `Hi,\n\nYour user profile has been created.\n\nYour login details are:\nEmail: ${newUserEmail}\nTemporary Password: ${tempPassword}\n\nOn your first login you will be prompted to change this password.`;
+      await dataService.sendEmail(newUserEmail, welcomeSubject, welcomeBody);
 
-    setUserModalOpen(false);
-    setNewUserEmail('');
-    setNewUserName('');
-    showToast(`User created. Welcome passcode email dispatched to ${newUserEmail}`);
-    refreshDealerData(activeDealer.id);
+      setUserModalOpen(false);
+      setNewUserEmail('');
+      setNewUserName('');
+      setAssignLicenseToAdmin(false);
+      showToast(`User created. Welcome passcode email dispatched to ${newUserEmail}`);
+      refreshDealerData(activeDealer.id);
+    } catch (err: any) {
+      showToast(`Error: ${err.message || 'Failed to create user'}`, 'error');
+    }
+  };
+
+  // Toggle license seat assignment for a user directly from User Directory
+  const handleToggleLicense = async (targetUser: any, hasLicense: boolean) => {
+    if (!activeDealer) return;
+    try {
+      if (hasLicense) {
+        // Revoke license
+        const userLicense = licensesList.find(l => l.user_id === targetUser.id);
+        if (userLicense) {
+          await dataService.assignLicense(userLicense.id, null);
+          showToast(`License seat revoked from ${targetUser.email}.`);
+        }
+      } else {
+        // Assign license
+        const freeLicense = licensesList.find(l => l.user_id === null);
+        if (!freeLicense) {
+          showToast('No available license seats. Please purchase more seats in the billing tab.', 'error');
+          return;
+        }
+        await dataService.assignLicense(freeLicense.id, targetUser.id);
+        showToast(`License seat assigned to ${targetUser.email}.`);
+      }
+      refreshDealerData(activeDealer.id);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update license seat.', 'error');
+    }
   };
 
   // Reset user password passcode
@@ -1028,7 +1068,12 @@ export default function DashboardPage() {
                   <h2>User Directory</h2>
                   <p>Add staff accounts, set temp passcodes, and monitor reset states.</p>
                 </div>
-                <button className="btn btn-primary btn-sm" onClick={() => setUserModalOpen(true)}>+ Add User</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                    Seats Used: <strong className="text-orange">{countAssignedSeats} / {activeDealer.license_count}</strong>
+                  </div>
+                  <button className="btn btn-primary btn-sm" onClick={() => setUserModalOpen(true)}>+ Add User</button>
+                </div>
               </div>
 
               <div className="table-container">
@@ -1038,6 +1083,7 @@ export default function DashboardPage() {
                       <th>Staff Name</th>
                       <th>Email Address</th>
                       <th>Role</th>
+                      <th>License Seat</th>
                       <th>Temporary Password</th>
                       <th>Forced Reset Flag</th>
                       <th>Created At</th>
@@ -1045,110 +1091,71 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {usersList.map(u => (
-                      <tr key={u.id}>
-                        <td style={{ fontWeight: 600 }}>{u.name || '—'}</td>
-                        <td style={{ fontWeight: 600 }}>{u.email}</td>
-                        <td>
-                          <span className={`badge ${u.role === 'dealer_admin' ? 'badge-info' : 'badge-warning'}`}>
-                            {u.role === 'dealer_admin' ? 'Admin' : 'Extension User'}
-                          </span>
-                        </td>
-                        <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: u.temp_password ? '#f6b23a' : 'var(--text-muted)' }}>
-                          {u.temp_password || 'Cleared (Active)'}
-                        </td>
-                        <td>
-                          <span className={`badge ${u.password_reset_required ? 'badge-danger' : 'badge-success'}`}>
-                            {u.password_reset_required ? 'Reset Required' : 'OK'}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                          {new Date(u.created_at).toLocaleDateString()}
-                        </td>
-                        <td style={{ display: 'flex', gap: '8px' }}>
-                          <button className="btn btn-secondary btn-sm" onClick={() => handleResetUserPassword(u.id, u.email)}>
-                            Reset Passcode
-                          </button>
-                          {u.email !== user.email && (
-                            <button className="btn btn-danger btn-sm" onClick={() => handleDeleteUser(u.id, u.email)}>
-                              Deactivate
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                    {usersList.map(u => {
+                      const userLicense = licensesList.find(l => l.user_id === u.id);
+                      const hasFreeSeats = licensesList.some(l => l.user_id === null);
 
-            {/* Panel 2: Active Seats & Licenses */}
-            <div className="content-panel">
-              <div className="panel-header">
-                <div className="panel-header-titles">
-                  <h2>Active Seats & Licenses</h2>
-                  <p>Map license seat keys to authorized users. Unassigned licenses do not allow extension login.</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                    Seats Used: <strong className="text-orange">{countAssignedSeats} / {activeDealer.license_count}</strong>
-                  </div>
-                  <button className="btn btn-primary btn-sm" onClick={() => setActiveTab('dealer-billing')}>Purchase Seats</button>
-                </div>
-              </div>
-
-              <div className="table-container">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>License Key (Seat ID)</th>
-                      <th>Assigned Staff User</th>
-                      <th>License Status</th>
-                      <th>Next Invoice Date</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {licensesList.map(l => {
-                      const nextBillingDate = new Date();
-                      nextBillingDate.setDate(new Date().getDate() + 14); // Mock billing date
-                      
                       return (
-                        <tr key={l.id}>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>{l.id}</td>
+                        <tr key={u.id}>
+                          <td style={{ fontWeight: 600 }}>{u.name || '—'}</td>
+                          <td style={{ fontWeight: 600 }}>{u.email}</td>
                           <td>
-                            <select 
-                              value={l.user_id || 'unassigned'}
-                              onChange={(e) => handleAssignLicense(l.id, e.target.value)}
-                              style={{ background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-dim)', color: 'white', padding: '6px 12px', borderRadius: '6px', fontSize: '13px' }}
-                            >
-                              <option value="unassigned">Unassigned (Vacant Seat)</option>
-                              {usersList.map(u => (
-                                <option key={u.id} value={u.id}>{u.email} ({u.role})</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <span className={`badge ${l.user_id ? 'badge-success' : 'badge-warning'}`}>
-                              {l.user_id ? 'Active Seat' : 'Unassigned'}
+                            <span className={`badge ${u.role === 'dealer_admin' ? 'badge-info' : 'badge-warning'}`}>
+                              {u.role === 'dealer_admin' ? 'Admin' : 'Extension User'}
                             </span>
                           </td>
-                          <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                            {activeDealer.status === 'trial' ? 'Trial Period' : 'End of Month'}
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span 
+                                className={`badge ${userLicense ? 'badge-success' : (u.role === 'user' ? 'badge-danger' : '')}`}
+                                style={!userLicense && u.role !== 'user' ? { backgroundColor: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)', border: '1px solid var(--border-dim)' } : undefined}
+                              >
+                                {userLicense ? 'Active Seat' : (u.role === 'user' ? 'Seat Required' : 'No Seat')}
+                              </span>
+                              {userLicense ? (
+                                <button 
+                                  className="btn btn-secondary btn-sm" 
+                                  style={{ padding: '2px 8px', fontSize: '11px', borderRadius: '4px' }}
+                                  onClick={() => handleToggleLicense(u, true)}
+                                >
+                                  Revoke
+                                </button>
+                              ) : (
+                                <button 
+                                  className="btn btn-primary btn-sm" 
+                                  style={{ padding: '2px 8px', fontSize: '11px', borderRadius: '4px' }}
+                                  disabled={!hasFreeSeats}
+                                  onClick={() => handleToggleLicense(u, false)}
+                                >
+                                  Assign
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: u.temp_password ? '#f6b23a' : 'var(--text-muted)' }}>
+                            {u.temp_password || 'Cleared (Active)'}
                           </td>
                           <td>
-                            {l.user_id && (
-                              <button className="btn btn-secondary btn-sm" onClick={() => handleAssignLicense(l.id, 'unassigned')}>
-                                Remove User
+                            <span className={`badge ${u.password_reset_required ? 'badge-danger' : 'badge-success'}`}>
+                              {u.password_reset_required ? 'Reset Required' : 'OK'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                            {new Date(u.created_at).toLocaleDateString()}
+                          </td>
+                          <td style={{ display: 'flex', gap: '8px' }}>
+                            <button className="btn btn-secondary btn-sm" onClick={() => handleResetUserPassword(u.id, u.email)}>
+                              Reset Passcode
+                            </button>
+                            {u.email !== user.email && (
+                              <button className="btn btn-danger btn-sm" onClick={() => handleDeleteUser(u.id, u.email)}>
+                                Deactivate
                               </button>
                             )}
                           </td>
                         </tr>
                       );
                     })}
-                    {licensesList.length === 0 && (
-                      <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No seats purchased. Go to billing to add seats.</td></tr>
-                    )}
                   </tbody>
                 </table>
               </div>
@@ -1432,11 +1439,32 @@ export default function DashboardPage() {
                   <select 
                     id="user-role"
                     value={newUserRole}
-                    onChange={(e) => setNewUserRole(e.target.value as any)}
+                    onChange={(e) => {
+                      setNewUserRole(e.target.value as any);
+                      setAssignLicenseToAdmin(false); // Reset checkbox
+                    }}
                   >
                     <option value="user">Chrome Extension Seat User</option>
                     <option value="dealer_admin">Dealership Admin</option>
                   </select>
+                  {newUserRole === 'user' ? (
+                    <span style={{ fontSize: '11px', color: 'var(--color-orange-primary)', marginTop: '2px', fontWeight: 500 }}>
+                      ※ Consumes 1 active license seat automatically.
+                    </span>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                      <input 
+                        type="checkbox" 
+                        id="assign-admin-license"
+                        checked={assignLicenseToAdmin}
+                        onChange={(e) => setAssignLicenseToAdmin(e.target.checked)}
+                        style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--color-orange-primary)' }}
+                      />
+                      <label htmlFor="assign-admin-license" style={{ fontSize: '12px', color: '#ffffff', cursor: 'pointer', userSelect: 'none', margin: 0 }}>
+                        Assign extension license seat to this admin (allows logging into extension)
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
 

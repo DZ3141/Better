@@ -475,7 +475,7 @@ export const dataService = {
     return dealerId ? state.users.filter(u => u.dealer_account_id === dealerId) : state.users;
   },
 
-  async createUser(dealerId: string | null, email: string, role: 'dealer_admin' | 'user', tempPass: string, name?: string): Promise<any> {
+  async createUser(dealerId: string | null, email: string, role: 'dealer_admin' | 'user', tempPass: string, name?: string, assignLicense: boolean = false): Promise<any> {
     const newUser = {
       id: isSupabaseConfigured && supabase ? generateUUID() : "u-" + Math.random().toString(36).substring(4),
       dealer_account_id: dealerId,
@@ -488,12 +488,56 @@ export const dataService = {
     };
 
     if (isSupabaseConfigured && supabase) {
+      let freeLicenseId: string | null = null;
+      if (assignLicense) {
+        const { data: licenses, error: licError } = await supabase
+          .from('licenses')
+          .select('id')
+          .eq('dealer_account_id', dealerId)
+          .is('user_id', null);
+        
+        if (licError) {
+          console.error("Error checking licenses:", licError);
+          throw new Error("Failed to verify license seat availability.");
+        }
+        
+        if (!licenses || licenses.length === 0) {
+          throw new Error("No available license seats. Please purchase more seats in the billing tab.");
+        }
+        freeLicenseId = licenses[0].id;
+      }
+
       const { error } = await supabase.from('users').insert(newUser);
       if (error) {
         console.error("Error inserting user into Supabase:", error);
+        throw new Error(error.message || "Failed to create user in database.");
+      }
+
+      if (assignLicense && freeLicenseId) {
+        const { error: assignError } = await supabase
+          .from('licenses')
+          .update({ user_id: newUser.id })
+          .eq('id', freeLicenseId);
+        
+        if (assignError) {
+          console.error("Error assigning license on user creation:", assignError);
+          throw new Error("User created, but failed to assign license seat: " + assignError.message);
+        }
       }
     }
+
     const state = getLocalStorageState();
+    if (assignLicense) {
+      const freeLicense = state.licenses.find(l => l.dealer_account_id === dealerId && l.user_id === null);
+      if (!isSupabaseConfigured || !supabase) {
+        if (!freeLicense) {
+          throw new Error("No available license seats. Please purchase more seats in the billing tab.");
+        }
+      }
+      if (freeLicense) {
+        freeLicense.user_id = newUser.id;
+      }
+    }
     state.users.push(newUser);
     saveLocalStorageState(state);
     return newUser;
