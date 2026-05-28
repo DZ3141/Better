@@ -166,7 +166,7 @@
     `;
 
     container.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px; margin-bottom:12px;">
+      <div id="mpp-float-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px; margin-bottom:12px; cursor:move; user-select:none;">
         <span style="font-weight:700; color:#f6b23a; letter-spacing:0.05em; font-size:14px;">MPP OPTIMIZER</span>
         <div style="display:flex; align-items:center; gap:6px;">
           <span style="width:8px; height:8px; background:#10b981; border-radius:50%; box-shadow:0 0 6px #10b981;"></span>
@@ -185,6 +185,59 @@
     `;
 
     document.body.appendChild(container);
+
+    // Make the panel draggable by its header
+    const header = document.getElementById('mpp-float-header');
+    let isDragging = false;
+    let startX, startY;
+    let initialLeft, initialTop;
+
+    header.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = container.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+
+      container.style.bottom = 'auto';
+      container.style.right = 'auto';
+      container.style.left = `${initialLeft}px`;
+      container.style.top = `${initialTop}px`;
+      container.style.transition = 'none';
+      
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      
+      let newLeft = initialLeft + dx;
+      let newTop = initialTop + dy;
+
+      const rect = container.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      if (newLeft < 0) newLeft = 0;
+      if (newLeft + rect.width > viewportWidth) newLeft = viewportWidth - rect.width;
+      if (newTop < 0) newTop = 0;
+      if (newTop + rect.height > viewportHeight) newTop = viewportHeight - rect.height;
+
+      container.style.left = `${newLeft}px`;
+      container.style.top = `${newTop}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        container.style.transition = 'all 0.3s ease';
+      }
+    });
 
     // Event listeners
     document.getElementById('mpp-float-opt').addEventListener('click', () => runPricingOptimization('optimize'));
