@@ -259,15 +259,26 @@ export default function DashboardPage() {
   // Reset user password passcode
   const handleResetUserPassword = async (userId: string, email: string) => {
     if (!activeDealer) return;
-    const tempPassword = "Temp#" + Math.floor(1000 + Math.random() * 9000);
+    const defaultTemp = "Temp#" + Math.floor(1000 + Math.random() * 9000);
+    const customPass = prompt(`Set temporary passcode for ${email}. You can type a new one or keep the generated one:`, defaultTemp);
+    if (customPass === null) return; // cancelled
+
+    const tempPassword = customPass.trim();
+    if (!tempPassword) {
+      showToast('Passcode cannot be empty.', 'error');
+      return;
+    }
+
     await dataService.updateUser(userId, { temp_password: tempPassword, password_reset_required: true });
 
-    // Send password reset email
-    const subject = "My Part Pros OEC Price Optimizer - Password Reset Credentials";
-    const body = `Hi,\n\nYour account password has been reset. Your temporary password is:\n\n${tempPassword}\n\nYou will be required to set a new password on your next login.`;
-    await dataService.sendEmail(email, subject, body);
+    try {
+      // Send password reset email
+      const subject = "My Part Pros OEC Price Optimizer - Password Reset Credentials";
+      const body = `Hi,\n\nYour account password has been reset. Your temporary password is:\n\n${tempPassword}\n\nYou will be required to set a new password on your next login.`;
+      await dataService.sendEmail(email, subject, body);
+    } catch (e) {}
 
-    showToast(`Password reset. Passcode emailed to ${email}`);
+    showToast(`Password reset successful! New passcode: "${tempPassword}"`, 'success');
     refreshDealerData(activeDealer.id);
   };
 
