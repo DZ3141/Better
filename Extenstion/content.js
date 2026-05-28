@@ -287,7 +287,13 @@
         });
 
         if (!res.ok) {
-          throw new Error('Server returned error validating request.');
+          throw new Error(`Server error: ${res.status} ${res.statusText}`);
+        }
+
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await res.text();
+          throw new Error(`Unexpected server response format (HTTP ${res.status}). Expected JSON but got: ${text.substring(0, 80)}...`);
         }
 
         const data = await res.json();

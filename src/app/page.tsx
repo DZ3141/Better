@@ -294,7 +294,7 @@ export default function HomePage() {
         zIndex: 100
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <img src="/extension/my-part-pros-lg.svg" alt="My Part Pros Logo" style={{ height: '36px', width: 'auto' }} />
+          <img src="/Transparent Logo.png" alt="My Part Pros Logo" style={{ height: '36px', width: 'auto' }} />
           <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#f6b23a', letterSpacing: '0.1em', marginTop: '2px' }}>
             Price Optimizer
           </div>

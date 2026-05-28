@@ -35,6 +35,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     await chrome.storage.local.set({ deviceFingerprint });
   }
 
+  // Helper to safely parse JSON response and provide clear error messages for HTML/text
+  async function parseResponseJson(res) {
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await res.text();
+      if (text.includes('The page could not be found') || res.status === 404) {
+        throw new Error(`Endpoint not found (404) at ${res.url}. Check API connection.`);
+      }
+      throw new Error(`Invalid response format (HTTP ${res.status}). Server returned HTML instead of JSON.`);
+    }
+    try {
+      return await res.json();
+    } catch (e) {
+      throw new Error(`Failed to parse JSON response: ${e.message}`);
+    }
+  }
+
   // 2. Check existing session
   if (storage.licenseKey) {
     showLoading(loginBtn, true);
@@ -79,7 +96,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         body: JSON.stringify({ email, password })
       });
 
-      const data = await res.json();
+      const data = await parseResponseJson(res);
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Login failed. Please verify credentials.');
@@ -152,7 +169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         })
       });
 
-      const data = await res.json();
+      const data = await parseResponseJson(res);
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to update passcode.');
       }
@@ -241,7 +258,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         body: JSON.stringify({ licenseKey, deviceFingerprint: fingerprint })
       });
       if (!res.ok) return false;
-      const data = await res.json();
+      const data = await parseResponseJson(res);
       return data.success;
     } catch (e) {
       console.error('Validation error:', e);
