@@ -250,12 +250,48 @@ export const dataService = {
   // --- AUTH SERVICES ---
   async login(email: string, pass: string): Promise<{ success: boolean; user?: any; error?: string }> {
     if (isSupabaseConfigured && supabase) {
+      // 1. Check if they are logging in with a valid temporary passcode first
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('*')
+        .ilike('email', email)
+        .maybeSingle();
+
+      const isTempLogin = !!(userProfile && userProfile.temp_password && userProfile.temp_password === pass);
+
+      if (isTempLogin && userProfile) {
+        return {
+          success: true,
+          user: {
+            id: userProfile.id,
+            email: userProfile.email,
+            role: userProfile.role,
+            dealer_account_id: userProfile.dealer_account_id,
+            password_reset_required: true
+          }
+        };
+      }
+
+      // 2. Standard login via Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
       if (error) return { success: false, error: error.message };
+      
       // Retrieve profile matching email
-      const dbState = getLocalStorageState(); // fallback sync profile roles
-      const profile = dbState.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      return { success: true, user: { ...data.user, role: profile?.role || 'user', dealer_account_id: profile?.dealer_account_id } };
+      const { data: profile } = await supabase
+        .from('users')
+        .select('*')
+        .ilike('email', email)
+        .maybeSingle();
+
+      return { 
+        success: true, 
+        user: { 
+          ...data.user, 
+          role: profile?.role || 'user', 
+          dealer_account_id: profile?.dealer_account_id,
+          password_reset_required: profile?.password_reset_required || false
+        } 
+      };
     }
 
     const state = getLocalStorageState();
@@ -266,16 +302,38 @@ export const dataService = {
     return { success: true, user };
   },
 
-  async updatePassword(email: string, newPass: string): Promise<boolean> {
+  async updatePassword(email: string, newPass: string, currentPass?: string): Promise<boolean> {
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.auth.updateUser({ password: newPass });
-      if (error) return false;
-      
-      // Clear temp password flags in public schema
-      await supabase.from('users').update({ 
-        temp_password: null, 
-        password_reset_required: false 
-      }).ilike('email', email);
+      try {
+        if (currentPass) {
+          // If currentPass is provided, call server-side reset-password route since client is unauthenticated
+          const res = await fetch('/api/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password: currentPass, newPassword: newPass })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            console.error("API reset-password failed:", data.message);
+            return false;
+          }
+          // Authenticate client-side session using new password
+          await supabase.auth.signInWithPassword({ email, password: newPass });
+          return true;
+        }
+
+        const { error } = await supabase.auth.updateUser({ password: newPass });
+        if (error) return false;
+        
+        // Clear temp password flags in public schema
+        await supabase.from('users').update({ 
+          temp_password: null, 
+          password_reset_required: false 
+        }).ilike('email', email);
+      } catch (err) {
+        console.error("Failed to update password:", err);
+        return false;
+      }
     }
     const state = getLocalStorageState();
     const userIndex = state.users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
@@ -487,7 +545,7 @@ export const dataService = {
       created_at: new Date().toISOString()
     };
 
-    if (isSupabaseConfigured && supabase) {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
       let freeLicenseId: string | null = null;
       if (assignLicense) {
         const { data: licenses, error: licError } = await supabase
@@ -498,7 +556,7 @@ export const dataService = {
         
         if (licError) {
           console.error("Error checking licenses:", licError);
-          throw new Error("Failed to verify license seat availability.");
+          throw new Error("Failed to verify license seat availability: " + licError.message);
         }
         
         if (!licenses || licenses.length === 0) {

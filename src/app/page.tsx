@@ -177,7 +177,7 @@ export default function HomePage() {
 
     setLoading(true);
     try {
-      const success = await dataService.updatePassword(email, newPassword);
+      const success = await dataService.updatePassword(email, newPassword, password);
       if (success) {
         setResetSuccess(true);
         // Automatically log in
