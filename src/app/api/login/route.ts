@@ -38,55 +38,71 @@ export async function POST(request: Request) {
       return corsResponse({ error: 'INVALID_CREDENTIALS', message: 'Invalid credentials.' }, 401);
     }
 
-    // 1. Sign in with password via Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    if (authError || !authData.user) {
-      return corsResponse({ error: 'INVALID_CREDENTIALS', message: authError?.message || 'Invalid credentials.' }, 401);
-    }
-
-    const userId = authData.user.id;
-    const userEmail = authData.user.email;
-
-    // 2. Fetch user profile from public.users (match by email since auth IDs differ from profile IDs)
+    // 1. Check if user exists in public.users by email first
     const { data: userProfile, error: profileError } = await supabase
       .from('users')
       .select('*')
-      .eq('email', userEmail)
-      .single();
+      .eq('email', email)
+      .maybeSingle();
 
-    if (profileError || !userProfile) {
+    // 2. Check if they are logging in with a valid temporary passcode
+    const isTempLogin = !!(userProfile && userProfile.temp_password && userProfile.temp_password === password);
+
+    let finalUserProfile = userProfile;
+
+    if (isTempLogin && userProfile) {
+      // Temp login is valid! We skip Supabase Auth check and will require password reset.
+    } else {
+      // 3. Standard login via Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (authError || !authData.user) {
+        return corsResponse({ error: 'INVALID_CREDENTIALS', message: authError?.message || 'Invalid credentials.' }, 401);
+      }
+
+      // If we didn't fetch userProfile yet (or if email mismatch), fetch it now
+      if (!finalUserProfile) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', authData.user.email)
+          .maybeSingle();
+        finalUserProfile = profile;
+      }
+    }
+
+    if (!finalUserProfile) {
       return corsResponse({ error: 'USER_NOT_FOUND', message: 'User profile not found in database. Contact your dealer administrator.' }, 404);
     }
 
-    // 3. Fetch dealer account
-    const { data: dealer, error: dealerError } = await supabase
+    // 4. Fetch dealer account
+    const { data: dealer } = await supabase
       .from('dealer_accounts')
       .select('*')
-      .eq('id', userProfile.dealer_account_id)
-      .single();
-
-    // 4. Fetch assigned license for the user (using profile ID, not auth UUID)
-    const { data: license, error: licError } = await supabase
-      .from('licenses')
-      .select('*')
-      .eq('user_id', userProfile.id)
+      .eq('id', finalUserProfile.dealer_account_id)
       .maybeSingle();
 
-    if (licError || !license) {
+    // 5. Fetch assigned license for the user (using profile ID, not auth UUID)
+    const { data: license } = await supabase
+      .from('licenses')
+      .select('*')
+      .eq('user_id', finalUserProfile.id)
+      .maybeSingle();
+
+    if (!license) {
       return corsResponse({ error: 'NO_LICENSE_ASSIGNED', message: 'No license seat is assigned to this user profile. Please contact your dealer administrator.' }, 403);
     }
 
     return corsResponse({
       success: true,
       user: {
-        id: userProfile.id,
-        email: userProfile.email,
-        role: userProfile.role,
-        password_reset_required: userProfile.password_reset_required
+        id: finalUserProfile.id,
+        email: finalUserProfile.email,
+        role: finalUserProfile.role,
+        password_reset_required: finalUserProfile.password_reset_required || isTempLogin
       },
       licenseKey: license.id,
       dealerAccount: dealer ? { id: dealer.id, name: dealer.name } : null

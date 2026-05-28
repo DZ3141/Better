@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase';
 
 function corsResponse(data: any, status = 200) {
   const response = NextResponse.json(data, { status });
@@ -29,34 +29,80 @@ export async function POST(request: Request) {
       return corsResponse({ success: true, message: 'Mock password updated successfully.' });
     }
 
-    // 1. Authenticate with temp password
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+    // 1. Fetch user profile from public.users to check the temporary passcode
+    const { data: userProfile, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .maybeSingle();
 
-    if (authError || !authData.user) {
-      return corsResponse({ error: 'INVALID_CREDENTIALS', message: 'Failed to authenticate with current passcode.' }, 401);
+    if (profileError || !userProfile) {
+      return corsResponse({ error: 'USER_NOT_FOUND', message: 'User profile not found in database.' }, 404);
     }
 
-    // 2. Update password in Supabase Auth using client instance
-    const { error: updateError } = await supabase.auth.updateUser({
-      password: newPassword
-    });
+    const isTempPassword = userProfile.temp_password && userProfile.temp_password === password;
 
-    if (updateError) {
-      return corsResponse({ error: 'UPDATE_FAILED', message: updateError.message }, 400);
+    if (isTempPassword) {
+      // 2a. Update password in Supabase Auth using the supabaseAdmin client (server-side only)
+      if (supabaseAdmin) {
+        // List users to see if they exist in auth schema
+        const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+        if (listError) {
+          return corsResponse({ error: 'ADMIN_ERROR', message: listError.message }, 500);
+        }
+        
+        const existingAuthUser = listData?.users.find(u => u.email === email);
+
+        if (existingAuthUser) {
+          // Update password for existing user in auth.users
+          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+            existingAuthUser.id,
+            { password: newPassword }
+          );
+          if (updateError) {
+            return corsResponse({ error: 'UPDATE_FAILED', message: updateError.message }, 400);
+          }
+        } else {
+          // Provision/Create the user in auth.users automatically
+          const { error: createError } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password: newPassword,
+            email_confirm: true
+          });
+          if (createError) {
+            return corsResponse({ error: 'PROVISION_FAILED', message: createError.message }, 400);
+          }
+        }
+      }
+    } else {
+      // 2b. Standard fallback: Authenticate with the current password first
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (authError || !authData.user) {
+        return corsResponse({ error: 'INVALID_CREDENTIALS', message: 'Failed to authenticate with current password.' }, 401);
+      }
+
+      // Update password using client instance
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (updateError) {
+        return corsResponse({ error: 'UPDATE_FAILED', message: updateError.message }, 400);
+      }
     }
 
-    // 3. Clear temp password and password_reset_required in public.users
-    const userId = authData.user.id;
+    // 3. Clear temp password and password_reset_required in public.users (match by email/id)
     await supabase
       .from('users')
       .update({
         temp_password: null,
         password_reset_required: false
       })
-      .eq('id', userId);
+      .eq('email', email);
 
     return corsResponse({ success: true, message: 'Password updated successfully. You can now use the extension.' });
 
