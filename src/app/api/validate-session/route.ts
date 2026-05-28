@@ -117,19 +117,24 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Create or update session
-    const { data: session, error: upsertError } = await client
+    // 4. Create or update session (delete existing session first to avoid lacking a UNIQUE constraint on license_id)
+    await client
       .from('sessions')
-      .upsert({
+      .delete()
+      .eq('license_id', licenseKey);
+
+    const { data: session, error: insertError } = await client
+      .from('sessions')
+      .insert({
         license_id: licenseKey,
         device_fingerprint: deviceFingerprint,
         last_seen: new Date().toISOString()
-      }, { onConflict: 'license_id' })
+      })
       .select()
       .single();
 
-    if (upsertError || !session) {
-      console.error('[VALIDATE SESSION API] Session upsert failed:', upsertError);
+    if (insertError || !session) {
+      console.error('[VALIDATE SESSION API] Session insertion failed:', insertError);
       return corsResponse({ error: 'SESSION_ERROR', message: 'Failed to establish device session.' }, 500);
     }
 
