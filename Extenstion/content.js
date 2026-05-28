@@ -10,20 +10,29 @@
       return;
     }
     
-    // Inject floating controller panel to guarantee user interface availability
-    createFloatingPanel();
-    
-    // Set up observer for dynamic OEC Angular page updates
+    // Set up observer for dynamic OEC Angular page updates and URL updates
     const observer = new MutationObserver(() => {
-      injectInlineButtons();
+      if (window.location.href.toLowerCase().includes('collisionlink')) {
+        createFloatingPanel();
+        injectInlineButtons();
+      } else {
+        removeFloatingPanel();
+        removeInlineButtons();
+      }
     });
     observer.observe(document.body, { childList: true, subtree: true });
+
+    // Initial check on load
+    if (window.location.href.toLowerCase().includes('collisionlink')) {
+      createFloatingPanel();
+      injectInlineButtons();
+    }
   }
 
   // Helper to get API Base URL
   async function getApiBaseUrl() {
     const data = await chrome.storage.local.get('apiBaseUrl');
-    return data.apiBaseUrl || 'https://better-r4mnqg7i7-davidmpp.vercel.app';
+    return data.apiBaseUrl || 'https://better-davidmpp.vercel.app';
   }
 
   // 2. DOM Scrapers & Selectors (Heuristic-based for maximum stability)
@@ -224,6 +233,16 @@
     container.appendChild(optBtn);
     container.appendChild(maxBtn);
     toolbar.appendChild(container);
+  }
+
+  function removeFloatingPanel() {
+    const el = document.getElementById('mpp-float-panel');
+    if (el) el.remove();
+  }
+
+  function removeInlineButtons() {
+    const el = document.getElementById('mpp-inline-container');
+    if (el) el.remove();
   }
 
   // 5. Dynamic Algorithm loading and runtime execution
