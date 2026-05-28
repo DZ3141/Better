@@ -682,6 +682,23 @@ export const dataService = {
 
   // --- DEVICE SESSIONS ---
   async getSessions(dealerId: string): Promise<any[]> {
+    if (isSupabaseConfigured && supabase && !isMockDealerId(dealerId)) {
+      const { data: licenses } = await supabase
+        .from('licenses')
+        .select('id')
+        .eq('dealer_account_id', dealerId);
+      
+      if (licenses && licenses.length > 0) {
+        const licenseIds = licenses.map(l => l.id);
+        const { data: dbSessions } = await supabase
+          .from('sessions')
+          .select('*')
+          .in('license_id', licenseIds);
+        
+        if (dbSessions) return dbSessions;
+      }
+      return [];
+    }
     const state = getLocalStorageState();
     const dealerLicenses = state.licenses.filter(l => l.dealer_account_id === dealerId).map(l => l.id);
     return state.sessions.filter(s => dealerLicenses.includes(s.license_id));
