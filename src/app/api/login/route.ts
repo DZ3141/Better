@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase';
 
 function corsResponse(data: any, status = 200) {
   const response = NextResponse.json(data, { status });
@@ -38,20 +38,37 @@ export async function POST(request: Request) {
       return corsResponse({ error: 'INVALID_CREDENTIALS', message: 'Invalid credentials.' }, 401);
     }
 
-    // 1. Check if user exists in public.users by email first
-    const { data: userProfile, error: profileError } = await supabase
+    // Use admin client if available to bypass RLS policies on the server side
+    const client = supabaseAdmin || supabase;
+    
+    if (!supabaseAdmin) {
+      console.warn('[LOGIN API] supabaseAdmin client is not initialized. Database queries might be restricted by RLS.');
+    }
+
+    // 1. Fetch user profile from public.users by email first (case-insensitive)
+    const { data: userProfile, error: profileError } = await client
       .from('users')
       .select('*')
       .ilike('email', email)
       .maybeSingle();
 
-    // 2. Check if they are logging in with a valid temporary passcode
-    const isTempLogin = !!(userProfile && userProfile.temp_password && userProfile.temp_password === password);
+    if (profileError) {
+      console.error('[LOGIN API] Error fetching user profile:', profileError);
+      return corsResponse({ error: 'DB_ERROR', message: 'Failed to query user profile.' }, 500);
+    }
 
-    let finalUserProfile = userProfile;
+    if (!userProfile) {
+      return corsResponse({ error: 'USER_NOT_FOUND', message: 'No account found for this email address. Please contact your dealer administrator.' }, 404);
+    }
 
-    if (isTempLogin && userProfile) {
-      // Temp login is valid! We skip Supabase Auth check and will require password reset.
+    // 2. Determine if logging in with temporary passcode
+    const isTempLogin = !!(userProfile.temp_password && userProfile.temp_password === password);
+    let passwordResetRequired = false;
+
+    if (isTempLogin) {
+      // Temp login is valid! We skip standard Supabase Auth check
+      passwordResetRequired = true;
+      console.log(`[LOGIN API] Successful temporary login for user: ${email}`);
     } else {
       // 3. Standard login via Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -60,53 +77,61 @@ export async function POST(request: Request) {
       });
 
       if (authError || !authData.user) {
-        return corsResponse({ error: 'INVALID_CREDENTIALS', message: authError?.message || 'Invalid credentials.' }, 401);
+        console.warn(`[LOGIN API] Auth signInWithPassword failed for ${email}:`, authError?.message);
+        return corsResponse({ error: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' }, 401);
       }
 
-      // If we didn't fetch userProfile yet (or if email mismatch), fetch it now
-      if (!finalUserProfile) {
-        const { data: profile } = await supabase
-          .from('users')
-          .select('*')
-          .ilike('email', authData.user.email || '')
-          .maybeSingle();
-        finalUserProfile = profile;
-      }
+      passwordResetRequired = userProfile.password_reset_required || false;
+      console.log(`[LOGIN API] Successful auth login for user: ${email}`);
     }
 
-    if (!finalUserProfile) {
-      return corsResponse({ error: 'USER_NOT_FOUND', message: 'User profile not found in database. Contact your dealer administrator.' }, 404);
+    // 4. Fetch associated dealer account
+    const dealerId = userProfile.dealer_account_id;
+    if (!dealerId) {
+      return corsResponse({ error: 'DEALER_NOT_ASSIGNED', message: 'No dealer account is assigned to this user profile. Please contact support.' }, 403);
     }
 
-    // 4. Fetch dealer account
-    const dealerId = finalUserProfile.dealer_account_id;
-    const isMockDealer = dealerId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dealerId);
+    const isMockDealer = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dealerId);
     let dealer = null;
 
-    if (dealerId && !isMockDealer) {
-      const { data } = await supabase
+    if (!isMockDealer) {
+      const { data: dealerData, error: dealerError } = await client
         .from('dealer_accounts')
         .select('*')
         .eq('id', dealerId)
         .maybeSingle();
-      dealer = data;
-    } else if (dealerId && isMockDealer) {
+
+      if (dealerError) {
+        console.error('[LOGIN API] Error fetching dealer account:', dealerError);
+        return corsResponse({ error: 'DB_ERROR', message: 'Failed to query dealer account.' }, 500);
+      }
+      dealer = dealerData;
+    } else {
       dealer = { id: dealerId, name: 'Hendrick Automotive Group' };
     }
 
-    // 5. Fetch assigned license for the user (using profile ID, not auth UUID)
-    const userId = finalUserProfile.id;
-    const isMockUser = userId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    if (!dealer) {
+      return corsResponse({ error: 'DEALER_NOT_FOUND', message: 'Your assigned dealer account could not be found.' }, 404);
+    }
+
+    // 5. Fetch assigned license for the user
+    const userId = userProfile.id;
+    const isMockUser = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
     let license = null;
 
-    if (userId && !isMockUser) {
-      const { data } = await supabase
+    if (!isMockUser) {
+      const { data: licenseData, error: licenseError } = await client
         .from('licenses')
         .select('*')
         .eq('user_id', userId)
         .maybeSingle();
-      license = data;
-    } else if (userId && isMockUser) {
+
+      if (licenseError) {
+        console.error('[LOGIN API] Error fetching license:', licenseError);
+        return corsResponse({ error: 'DB_ERROR', message: 'Failed to query user license seat.' }, 500);
+      }
+      license = licenseData;
+    } else {
       license = { id: `lic-mock-${userId}`, dealer_account_id: dealerId, user_id: userId };
     }
 
@@ -117,13 +142,13 @@ export async function POST(request: Request) {
     return corsResponse({
       success: true,
       user: {
-        id: finalUserProfile.id,
-        email: finalUserProfile.email,
-        role: finalUserProfile.role,
-        password_reset_required: finalUserProfile.password_reset_required || isTempLogin
+        id: userProfile.id,
+        email: userProfile.email,
+        role: userProfile.role,
+        password_reset_required: passwordResetRequired
       },
       licenseKey: license.id,
-      dealerAccount: dealer ? { id: dealer.id, name: dealer.name } : null
+      dealerAccount: { id: dealer.id, name: dealer.name }
     });
 
   } catch (err: any) {

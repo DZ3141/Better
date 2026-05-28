@@ -29,8 +29,14 @@ export async function POST(request: Request) {
       return corsResponse({ success: true, message: 'Mock password updated successfully.' });
     }
 
+    const client = supabaseAdmin || supabase;
+
+    if (!supabaseAdmin) {
+      console.warn('[RESET PASSWORD API] supabaseAdmin client is not initialized. Database queries might be restricted by RLS.');
+    }
+
     // 1. Fetch user profile from public.users to check the temporary passcode
-    const { data: userProfile, error: profileError } = await supabase
+    const { data: userProfile, error: profileError } = await client
       .from('users')
       .select('*')
       .ilike('email', email)
@@ -73,6 +79,8 @@ export async function POST(request: Request) {
             return corsResponse({ error: 'PROVISION_FAILED', message: createError.message }, 400);
           }
         }
+      } else {
+        return corsResponse({ error: 'CONFIG_ERROR', message: 'Service role key is not configured on the server. Cannot provision Auth user.' }, 500);
       }
     } else {
       // 2b. Standard fallback: Authenticate with the current password first
@@ -96,13 +104,18 @@ export async function POST(request: Request) {
     }
 
     // 3. Clear temp password and password_reset_required in public.users (match by email/id)
-    await supabase
+    const { error: updateProfileError } = await client
       .from('users')
       .update({
         temp_password: null,
         password_reset_required: false
       })
       .eq('id', userProfile.id);
+
+    if (updateProfileError) {
+      console.error('[RESET PASSWORD API] Failed to clear user temp_password:', updateProfileError);
+      return corsResponse({ error: 'DB_ERROR', message: 'Failed to update user profile flags.' }, 500);
+    }
 
     return corsResponse({ success: true, message: 'Password updated successfully. You can now use the extension.' });
 
