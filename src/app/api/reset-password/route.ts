@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const { data: userProfile, error: profileError } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email)
+      .eq('email', email.toLowerCase())
       .maybeSingle();
 
     if (profileError || !userProfile) {
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
           return corsResponse({ error: 'ADMIN_ERROR', message: listError.message }, 500);
         }
         
-        const existingAuthUser = listData?.users.find(u => u.email === email);
+        const existingAuthUser = listData?.users.find(u => u.email ? u.email.toLowerCase() === email.toLowerCase() : false);
 
         if (existingAuthUser) {
           // Update password for existing user in auth.users
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
         temp_password: null,
         password_reset_required: false
       })
-      .eq('email', email);
+      .eq('email', email.toLowerCase());
 
     return corsResponse({ success: true, message: 'Password updated successfully. You can now use the extension.' });
 

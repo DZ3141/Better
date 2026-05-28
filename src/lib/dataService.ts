@@ -5,6 +5,17 @@ const isMockDealerId = (id: string | null): boolean => {
   return !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 };
 
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 export interface Dealer {
   id: string;
   name: string;
@@ -243,12 +254,12 @@ export const dataService = {
       if (error) return { success: false, error: error.message };
       // Retrieve profile matching email
       const dbState = getLocalStorageState(); // fallback sync profile roles
-      const profile = dbState.users.find(u => u.email === email);
+      const profile = dbState.users.find(u => u.email.toLowerCase() === email.toLowerCase());
       return { success: true, user: { ...data.user, role: profile?.role || 'user', dealer_account_id: profile?.dealer_account_id } };
     }
 
     const state = getLocalStorageState();
-    const user = state.users.find(u => u.email === email);
+    const user = state.users.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (!user) return { success: false, error: "User credentials not found." };
     if (user.temp_password && user.temp_password !== pass) return { success: false, error: "Incorrect passcode." };
     // Simulate auth
@@ -261,7 +272,7 @@ export const dataService = {
       if (error) return false;
     }
     const state = getLocalStorageState();
-    const userIndex = state.users.findIndex(u => u.email === email);
+    const userIndex = state.users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
     if (userIndex !== -1) {
       state.users[userIndex].temp_password = null;
       state.users[userIndex].password_reset_required = false;
@@ -285,7 +296,7 @@ export const dataService = {
     trialEnds.setDate(trialEnds.getDate() + trialDays);
 
     const newDealer = {
-      id: typeof crypto !== 'undefined' ? crypto.randomUUID() : "d-" + Math.random().toString(36).substring(4),
+      id: isSupabaseConfigured && supabase ? generateUUID() : (typeof crypto !== 'undefined' ? crypto.randomUUID() : "d-" + Math.random().toString(36).substring(4)),
       name,
       odoo_customer_id: "odoo_" + Math.random().toString(36).substring(6),
       odoo_contract_id: "contract_" + Math.random().toString(36).substring(7),
@@ -313,7 +324,7 @@ export const dataService = {
     // Create empty license slots for this dealer
     for (let i = 0; i < seatCount; i++) {
       const newLicense = {
-        id: typeof crypto !== 'undefined' ? crypto.randomUUID() : `lic-${newDealer.id}-${i+1}`,
+        id: isSupabaseConfigured && supabase ? generateUUID() : (typeof crypto !== 'undefined' ? crypto.randomUUID() : `lic-${newDealer.id}-${i+1}`),
         dealer_account_id: newDealer.id,
         user_id: null,
         created_at: new Date().toISOString()
@@ -354,7 +365,7 @@ export const dataService = {
         // Add seats
         for (let i = oldSeatCount; i < newSeatCount; i++) {
           const newLicense = {
-            id: typeof crypto !== 'undefined' ? crypto.randomUUID() : `lic-${dealerId}-${i+1}`,
+            id: isSupabaseConfigured && supabase ? generateUUID() : (typeof crypto !== 'undefined' ? crypto.randomUUID() : `lic-${dealerId}-${i+1}`),
             dealer_account_id: dealerId,
             user_id: null,
             created_at: new Date().toISOString()
@@ -460,9 +471,9 @@ export const dataService = {
 
   async createUser(dealerId: string | null, email: string, role: 'dealer_admin' | 'user', tempPass: string, name?: string): Promise<any> {
     const newUser = {
-      id: "u-" + Math.random().toString(36).substring(4),
+      id: isSupabaseConfigured && supabase ? generateUUID() : "u-" + Math.random().toString(36).substring(4),
       dealer_account_id: dealerId,
-      email,
+      email: email.toLowerCase(),
       name: name || '',
       role,
       temp_password: tempPass,
@@ -471,7 +482,10 @@ export const dataService = {
     };
 
     if (isSupabaseConfigured && supabase) {
-      await supabase.from('users').insert(newUser);
+      const { error } = await supabase.from('users').insert(newUser);
+      if (error) {
+        console.error("Error inserting user into Supabase:", error);
+      }
     }
     const state = getLocalStorageState();
     state.users.push(newUser);
@@ -1056,7 +1070,7 @@ export const dataService = {
     invoiceNumber: string
   ): Promise<any> {
     const newInvoice = {
-      id: typeof crypto !== 'undefined' ? crypto.randomUUID() : "inv_" + Math.random().toString(36).substring(4),
+      id: isSupabaseConfigured && supabase ? generateUUID() : (typeof crypto !== 'undefined' ? crypto.randomUUID() : "inv_" + Math.random().toString(36).substring(4)),
       dealer_account_id: dealerId,
       date,
       seat_count: Number(seatCount),
@@ -1174,8 +1188,8 @@ export const dataService = {
     extra: { phone?: string; city?: string; state?: string; warehouse_pickers?: number | null; drivers?: number | null; collisionlink_users?: number | null } = {}
   ): Promise<string> {
     const newApproval = {
-      id: typeof crypto !== 'undefined' ? crypto.randomUUID() : "app-" + Math.random().toString(36).substring(4),
-      email,
+      id: isSupabaseConfigured && supabase ? generateUUID() : (typeof crypto !== 'undefined' ? crypto.randomUUID() : "app-" + Math.random().toString(36).substring(4)),
+      email: email.toLowerCase(),
       dealer_name: dealerName,
       phone: extra.phone || '',
       city: extra.city || '',
