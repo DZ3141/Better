@@ -22,6 +22,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sessLicense = document.getElementById('sess-license');
   const logoutBtn = document.getElementById('logout-btn');
 
+  // Settings Elements
+  const settingsToggle = document.getElementById('settings-toggle');
+  const settingsPanel = document.getElementById('settings-panel');
+  const settingsApiUrl = document.getElementById('settings-api-url');
+  const btnUseVercel = document.getElementById('btn-use-vercel');
+  const btnUseLocal = document.getElementById('btn-use-local');
+  const saveSettingsBtn = document.getElementById('save-settings-btn');
+
   // Temp storage during reset process
   let tempResetEmail = '';
 
@@ -29,6 +37,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   const storage = await chrome.storage.local.get(['apiBaseUrl', 'deviceFingerprint', 'licenseKey', 'userEmail', 'dealerName']);
   const apiBaseUrl = storage.apiBaseUrl || 'https://better-r4mnqg7i7-davidmpp.vercel.app';
   let deviceFingerprint = storage.deviceFingerprint;
+
+  // Prepopulate settings input
+  settingsApiUrl.value = apiBaseUrl;
+
+  // Toggle Settings Panel
+  settingsToggle.addEventListener('click', () => {
+    settingsPanel.classList.toggle('active');
+  });
+
+  // Use Vercel Preset
+  btnUseVercel.addEventListener('click', () => {
+    settingsApiUrl.value = 'https://better-r4mnqg7i7-davidmpp.vercel.app';
+  });
+
+  // Use Local Preset
+  btnUseLocal.addEventListener('click', () => {
+    settingsApiUrl.value = 'http://localhost:3000';
+  });
+
+  // Save Settings URL
+  saveSettingsBtn.addEventListener('click', async () => {
+    const newUrl = settingsApiUrl.value.trim();
+    if (!newUrl) {
+      showBanner('API URL cannot be empty.', 'error');
+      return;
+    }
+    await chrome.storage.local.set({ apiBaseUrl: newUrl });
+    showBanner('API URL updated! Reloading...', 'success');
+    setTimeout(() => {
+      window.location.reload();
+    }, 1200);
+  });
 
   if (!deviceFingerprint) {
     deviceFingerprint = generateFingerprint();
