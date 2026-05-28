@@ -49,16 +49,17 @@ export async function POST(request: Request) {
     }
 
     const userId = authData.user.id;
+    const userEmail = authData.user.email;
 
-    // 2. Fetch user profile from public.users
+    // 2. Fetch user profile from public.users (match by email since auth IDs differ from profile IDs)
     const { data: userProfile, error: profileError } = await supabase
       .from('users')
       .select('*')
-      .eq('id', userId)
+      .eq('email', userEmail)
       .single();
 
     if (profileError || !userProfile) {
-      return corsResponse({ error: 'USER_NOT_FOUND', message: 'User profile not found in database.' }, 404);
+      return corsResponse({ error: 'USER_NOT_FOUND', message: 'User profile not found in database. Contact your dealer administrator.' }, 404);
     }
 
     // 3. Fetch dealer account
@@ -68,11 +69,11 @@ export async function POST(request: Request) {
       .eq('id', userProfile.dealer_account_id)
       .single();
 
-    // 4. Fetch assigned license for the user
+    // 4. Fetch assigned license for the user (using profile ID, not auth UUID)
     const { data: license, error: licError } = await supabase
       .from('licenses')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', userProfile.id)
       .maybeSingle();
 
     if (licError || !license) {
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
     return corsResponse({
       success: true,
       user: {
-        id: userId,
+        id: userProfile.id,
         email: userProfile.email,
         role: userProfile.role,
         password_reset_required: userProfile.password_reset_required
